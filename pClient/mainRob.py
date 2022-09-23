@@ -64,6 +64,9 @@ class MyRob(CRobLinkAngs):
             
 
     def wander(self):
+        self.wanderC1()
+        
+        """ 
         center_id = 0
         left_id = 1
         right_id = 2
@@ -82,7 +85,30 @@ class MyRob(CRobLinkAngs):
             self.driveMotors(0.0,0.1)
         else:
             print('Go')
-            self.driveMotors(0.1,0.1)
+            self.driveMotors(0.1,0.1) 
+        """
+
+
+    def wanderC1(self):
+        if self.measures.lineSensor == ['0','0','1','1','1','0','0']:
+            print('Go')
+            self.driveMotors(0.15, 0.15)
+        elif '1' in self.measures.lineSensor[:-5]:
+            print('Rotate left')
+            self.driveMotors(0.0,0.05)
+        elif '1' in self.measures.lineSensor[5:]:
+            print('Rotate right')
+            self.driveMotors(0.05,0.0)
+        elif self.measures.lineSensor[2] == '0':
+            print('Rotate slowly left')
+            self.driveMotors(0.01,0.15)
+        elif self.measures.lineSensor[4] == '0':
+            print('Rotate slowly right')
+            self.driveMotors(0.15,0.01)
+        else:
+            print('Stop')
+            print(self.measures.lineSensor)
+            self.driveMotors(0.0, 0.0)
 
 class Map():
     def __init__(self, filename):
