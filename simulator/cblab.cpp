@@ -114,14 +114,13 @@ double cbLab::wallDistance(cbPoint &p)
 /*!
 	Determine and return if point is inside wall
 */
-bool cbLab::isInside(cbPoint &p)
+bool cbLab::isInside(const cbPoint &p)
 {
 	bool inside = false;
 	for (unsigned int i=1; i<walls.size(); i++) // wall 0 must not be considered as it models the outer border!!!
 	{
 		if (walls[i]->isInside(p)) { 
 		  inside=true;
-		  fprintf(stderr, "Inside wall %d\n",i);
 		}
 	}
 	return inside;

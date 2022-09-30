@@ -31,6 +31,7 @@
 #include <QTime>
 
 #include <QTextEdit>
+#include <QCoreApplication>
 
 using std::cerr;
 using std::cout;
@@ -787,8 +788,8 @@ void cbRobot::updateStateControl()
                          } 
                       }
                       if(d==180) {
-                            fprintf(stderr, "Lab has no Loop! Does not fit for this challenge!\n");
-                            exit(1);
+                            fprintf(stderr, "Lab has no Loop! Does not fit for this challenge!\n"); // TODO: add Graphical Window Warning
+                            QCoreApplication::exit(1);
                       }
                   }
 
@@ -1260,6 +1261,322 @@ void cbRobot::updateStatePlanning()
     }
 }
 
+void cbRobot::updateStateLineControl2022()
+{
+    switch(_state) {
+        case RUNNING:
+            if(removed) _state = REMOVED;
+
+            else if (simulator->state() == cbSimulator::STOPPED) {
+                _unstoppedState=_state;
+                _state=STOPPED;
+            }
+
+            else if (endLed) {
+	        _state = FINISHED;
+	    }
+
+            break;
+        case STOPPED:
+            if(removed) _state = REMOVED;
+            else if(simulator->state() != cbSimulator::STOPPED)
+                      _state=_unstoppedState;
+            // determine path first time RUNNING
+            if(_state==RUNNING && simulator->curTime()==0) {
+                  controlCellPath[0].x = curPos.X()+0.5;   // THESE CELLS are 1x1 and centered on the possible line positions
+                  controlCellPath[0].y = curPos.Y()+0.5;   // this is different from cell concept used in updateStateControl (2021)
+                  struct cell_t newCell = controlCellPath[0];
+                  newCell.x++;
+                  nCellPath=1;
+                  int dir = 0;
+                  while(newCell.x!=controlCellPath[0].x || newCell.y!=controlCellPath[0].y) {
+                      int d;
+                      struct cell_t cell = newCell;
+                      controlCellPath[nCellPath]=cell;
+                      nCellPath++;
+                      for(d=-90; d<=90; d+=90) { 
+                         if(simulator->Lab()->isInside(cbPoint(newCell.x+cos((d+dir)*M_PI/180.0)*0.5,newCell.y+sin((d+dir)*M_PI/180.0)*0.5))){
+                             newCell.x = round(cell.x + cos((dir+d)*M_PI/180.0));
+                             newCell.y = round(cell.y + sin((dir+d)*M_PI/180.0));
+                             dir = (dir + d + 360) % 360;
+
+                             break;
+                         } 
+                      }
+                      if(d==180) {
+                            fprintf(stderr, "Lab has no Loop! Does not fit for this challenge!\n");
+                            QCoreApplication::exit(1);
+                      }
+                  }
+
+                  //debug
+                  for(int i=0; i<nCellPath; i++) {
+                         printf("pathcell %d %d\n",controlCellPath[i].x, controlCellPath[i].y);
+                  }
+            }
+            break;
+        case FINISHED:
+            if(removed) _state = REMOVED;
+	default:
+	    break;
+    }
+}
+
+void cbRobot::updateStateLineMapping2022()
+{
+    switch(_state) {
+        case RUNNING:
+            if(removed) _state = REMOVED;
+
+            else if (simulator->state() == cbSimulator::STOPPED) {
+                _unstoppedState=_state;
+                _state=STOPPED;
+            }
+
+            else if (endLed) {
+	        _state = FINISHED;
+	    }
+
+            break;
+        case STOPPED:
+            if(removed) _state = REMOVED;
+            else if(simulator->state() != cbSimulator::STOPPED)
+                      _state=_unstoppedState;
+            // determine lab map centered on robot initial pos
+            if(_state==RUNNING && simulator->curTime()==0) {
+                  int  cells_width  = int(simulator->Lab()->Width())/2;
+                  int  cells_height = int(simulator->Lab()->Height())/2;
+                  int  lmap_width   = (cells_width-2)*4+1;
+                  int  lmap_height  = (cells_height-2)*4+1;
+                  char lmap[lmap_height][lmap_width];
+
+                  memset(lmap,' ',sizeof(lmap));
+
+                  //debug
+
+                  struct cell_t initCell = getRobotCell();;
+
+                  fprintf(stderr,"initCell %d %d\n", initCell.x, initCell.y);
+
+                  // find vertical lines
+                  for(int cy = 1; cy < cells_height-1; cy++) {
+                       for(int cx = 1; cx < cells_width; cx++) {
+                            if(simulator->Lab()->isInside(cbPoint(cx*2.0,cy*2.0+0.5))){
+                                 //fprintf(stderr,"not reachable %d %d -> %d %d, lmap %d %d\n", cy, cx, cy, cx+1, 
+                                 //         (cy-initCell.y)*2+lmap_height/2,(cx-initCell.x)*2+1+lmap_width/2);
+                                 lmap[(cy-initCell.y)*2+lmap_height/2+1][(cx-initCell.x)*2+lmap_width/2] = '|';
+                            }
+                       } 
+                  }
+
+                  // find horizontal lines
+                  for(int cy = 1; cy < cells_height; cy++) {
+                       for(int cx = 1; cx < lmap_width-1; cx++) {
+                            if(simulator->Lab()->isInside(cbPoint(cx*2.0+0.5,cy*2.0))){
+                                 lmap[(cy-initCell.y)*2+lmap_height/2][(cx-initCell.x)*2+1+lmap_width/2] = '-';
+                            }
+                       } 
+                  }
+
+                  //mark initial pos as I
+                  lmap[lmap_height/2][lmap_width/2] = 'I';
+
+
+                  FILE *fp=fopen("mapping.out","w");
+                  if(fp==NULL) {
+                       fprintf(stderr,"Could not create mapping file\n");
+                  }
+                  else {
+                     for(int ly = lmap_height-1; ly>=0; ly--) {
+                        for(int lx = 0; lx < lmap_width; lx++) {
+                              fprintf(fp,"%c",lmap[ly][lx]);
+                        } 
+                        fprintf(fp,"\n");
+                     }
+                     fclose(fp);
+                  }
+                  
+            }
+            break;
+        case FINISHED:
+            if(removed) _state = REMOVED;
+	default:
+	    break;
+    }
+}
+
+void cbRobot::updateStateLinePlanning2022()
+{
+    switch(_state) {
+        case RUNNING:
+            if(removed) _state = REMOVED;
+
+            else if (simulator->state() == cbSimulator::STOPPED) {
+                _unstoppedState=_state;
+                _state=STOPPED;
+            }
+
+            else if (endLed) {
+	        _state = FINISHED;
+	    }
+
+            break;
+        case STOPPED:
+            if(removed) _state = REMOVED;
+            else if(simulator->state() != cbSimulator::STOPPED)
+                      _state=_unstoppedState;
+            // determine lab map centered on robot initial pos
+            if(_state==RUNNING && simulator->curTime()==0) {
+                  int  cells_width  = int(simulator->Lab()->Width())/2;
+                  int  cells_height = int(simulator->Lab()->Height())/2;
+                  int  lmap_width   = (cells_width-2)*4+1;
+                  int  lmap_height  = (cells_height-2)*4+1;
+                  char lmap[lmap_height][lmap_width];
+
+                  memset(lmap,' ',sizeof(lmap));
+
+                  //debug
+
+                  struct cell_t initCell = getRobotCell();;
+
+                  fprintf(stderr,"initCell %d %d\n", initCell.x, initCell.y);
+
+                  // find vertical lines
+                  for(int cy = 1; cy < cells_height-1; cy++) {
+                       for(int cx = 1; cx < cells_width; cx++) {
+                            if(simulator->Lab()->isInside(cbPoint(cx*2.0,cy*2.0+0.5))){
+                                 //fprintf(stderr,"not reachable %d %d -> %d %d, lmap %d %d\n", cy, cx, cy, cx+1, 
+                                 //         (cy-initCell.y)*2+lmap_height/2,(cx-initCell.x)*2+1+lmap_width/2);
+                                 lmap[(cy-initCell.y)*2+lmap_height/2+1][(cx-initCell.x)*2+lmap_width/2] = '|';
+                            }
+                       } 
+                  }
+
+                  // find horizontal lines
+                  for(int cy = 1; cy < cells_height; cy++) {
+                       for(int cx = 1; cx < lmap_width-1; cx++) {
+                            if(simulator->Lab()->isInside(cbPoint(cx*2.0+0.5,cy*2.0))){
+                                 lmap[(cy-initCell.y)*2+lmap_height/2][(cx-initCell.x)*2+1+lmap_width/2] = '-';
+                            }
+                       } 
+                  }
+
+                  //mark initial pos as I
+                  lmap[lmap_height/2][lmap_width/2] = 'I';
+
+                  //mark targets
+                  for(unsigned int bi=0; bi < simulator->Lab()->nBeacons(); bi++) {
+                      struct cell_t targetCell;
+                      targetCell.x = simulator->Lab()->Target(bi)->Center().X()/2.0;
+                      targetCell.y = simulator->Lab()->Target(bi)->Center().Y()/2.0;
+                      lmap[(targetCell.y-initCell.y)*2+lmap_height/2][(targetCell.x-initCell.x)*2+lmap_width/2] = '0'+bi;
+                  }
+
+                  FILE *fp=fopen("planning.out","w");
+                  if(fp==NULL) {
+                       fprintf(stderr,"Could not create planning file\n");
+                  }
+                  else {
+                     for(int ly = lmap_height-1; ly>=0; ly--) {
+                        for(int lx = 0; lx < lmap_width; lx++) {
+                              fprintf(fp,"%c",lmap[ly][lx]);
+                        } 
+                        fprintf(fp,"\n");
+                     }
+                     fclose(fp);
+                  }
+
+                  cbGraph grLab;
+
+                  // add horizontal links
+                  for(float x = 2.0; x < simulator->Lab()->Width()-2.0; x+=2.0) {
+                      for(float y = 2.0; y < simulator->Lab()->Height(); y+=2.0) {
+                          cbPoint from(x,y);
+                          cbPoint to  (x+2.0,y);
+                          cbPoint ptLine(x+0.5,y);
+
+                          if(simulator->Lab()->isInside(ptLine)){
+                              grLab.addLink(cbNode(from,MAXINT,MAXINT), cbNode(to,MAXINT,MAXINT),   2.0);
+                              grLab.addLink(cbNode(to,MAXINT,MAXINT),   cbNode(from,MAXINT,MAXINT), 2.0);
+                          }
+                      }
+                  }
+                        
+                  // add vertical links
+                  for(float x = 2.0; x < simulator->Lab()->Width(); x+=2.0) {
+                      for(float y = 2.0; y < simulator->Lab()->Height()-2.0; y+=2.0) {
+                          cbPoint from(x,y);
+                          cbPoint to  (x,y+2.0);
+                          cbPoint ptLine(x, y+0.5);
+
+                          if(simulator->Lab()->isInside(ptLine)){
+                              grLab.addLink(cbNode(from,MAXINT,MAXINT), cbNode(to,MAXINT,MAXINT),   2.0);
+                              grLab.addLink(cbNode(to,MAXINT,MAXINT),   cbNode(from,MAXINT,MAXINT), 2.0);
+                          }
+                      }
+                  }
+
+                  // store distances between beacons
+                  std::vector<std::vector<double> > beaconDists;
+                  std::vector<double> aux(simulator->Lab()->nBeacons(), MAXINT);  
+                  for(unsigned int bi=0; bi < simulator->Lab()->nBeacons(); bi++) {
+                      beaconDists.push_back(aux);
+                  }
+                  for(unsigned int bi=0; bi < simulator->Lab()->nBeacons()-1; bi++) {
+                      for(unsigned int bf=bi+1; bf < simulator->Lab()->nBeacons(); bf++) {
+                          double dist=grLab.dist(cbNode(simulator->Lab()->Beacon(bi)->Center(), MAXINT, MAXINT),
+                                                 cbNode(simulator->Lab()->Beacon(bf)->Center(), MAXINT, MAXINT));
+                          beaconDists[bi][bf]=dist;
+                          beaconDists[bf][bi]=dist;
+                          //fprintf(stderr,"distance from beacons %d -> %d = %f\n", bi, bf, dist);
+                      }
+                  }
+
+                  // find best path
+
+                  std::vector<int> path, bestPath;
+                  double bestDist=MAXINT;
+                  for(unsigned int bi=0; bi < simulator->Lab()->nBeacons(); bi++) {
+                      path.push_back(bi);
+                  }
+                  path.push_back(0);
+
+                  if(path.size()>2) {
+                      do {
+                          double dist=0.0;
+                          for(unsigned int p=0; p<path.size()-1; p++) {
+                              dist+=beaconDists[path[p]][path[p+1]];
+                          }
+                          if (dist<bestDist) {
+                              bestDist = dist;
+                              bestPath = path;
+                          }
+
+                      } while(std::next_permutation(path.begin()+1, 
+                                                    path.begin()+simulator->Lab()->nBeacons()));
+                      
+                      FILE *fp=fopen("planning.out","a");
+                      if(fp==NULL) {
+                       fprintf(stderr,"Could not append planning file\n");
+                      }
+                      else {
+                          for(unsigned int p=0; p<bestPath.size(); p++) {
+                              fprintf(fp," %d", bestPath[p]);
+                          }
+                          fprintf(fp,"\n%f\n",bestDist);
+                     }
+                     fclose(fp);
+                  }
+            }
+            break;
+        case FINISHED:
+            if(removed) _state = REMOVED;
+	default:
+	    break;
+    }
+}
+
+
 
 #define COLLISION_PENALTY   5
 #define NOTFINISH_PENALTY  15
@@ -1307,6 +1624,64 @@ void cbRobot::updateScoreControl()
     emit robReturnTimeChanged((int) returningTime);
     emit robScoreChanged((int) score);
 }
+
+void cbRobot::updateScoreLineControl2022()
+{
+    if (isRemoved() || hasFinished()) return;
+    
+    if (hasCollide() && !collisionPrevCycle)
+    {
+        //DEBUG
+	//simulator->grAux->addFinalPoint(id,curPos.Coord());
+        //double distCol=simulator->grAux->dist(id);
+	//cerr << simulator->curTime() << ": R" << id << " distCol=" << distCol <<"\n";
+        scorePenalties += -(collisionWallPenalty * hasCollideWall()) - (collisionRobotPenalty * hasCollideRobot());
+	collisionCount++;
+
+        emit robCollisionsChanged((int) collisionCount);
+    }
+    collisionPrevCycle=hasCollide();
+
+    switch(_state) {
+	    case RUNNING:
+		 {
+
+                    struct cell_t curCell;
+                    curCell.x = curPos.X()+0.5;
+                    curCell.y = curPos.Y()+0.5;
+                    if(curCell.x == controlCellPath[nextPathInd].x && curCell.y == controlCellPath[nextPathInd].y) {
+                        nextPathInd++;
+                        if (nextPathInd >= nCellPath) nextPathInd=0;
+                        scoreControl += 10;
+                    }
+
+                    // check if robot is outside line
+                    bool outside=true;
+                    for(int c=0 ; c < nCellPath; c++) {
+                        if(controlCellPath[c].x == curCell.x && controlCellPath[c].y==curCell.y){
+                            outside = false;
+                            break;
+                        }
+                    }
+                    if (outside) {
+                        scoreControl -=10;
+                    }
+
+		    score = scorePenalties + scoreControl;  
+
+		    if(endLedOn()) { // robot finishing at Beacon
+                        score=scorePenalties;
+		    }
+		    break;
+		 }
+	   default:
+		    break;
+    }
+    emit robArrivalTimeChanged((int) arrivalTime);
+    emit robReturnTimeChanged((int) returningTime);
+    emit robScoreChanged((int) score);
+}
+
 
 
 void cbRobot::updateScore()
