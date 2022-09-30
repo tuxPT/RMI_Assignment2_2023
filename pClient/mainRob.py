@@ -47,7 +47,7 @@ class MyRob(CRobLinkAngs):
                     state='wait'
                 if self.measures.ground==0:
                     self.setVisitingLed(True);
-                self.goC1()
+                self.wander()
             elif state=='wait':
                 self.setReturningLed(True)
                 if self.measures.visitingLed==True:
@@ -60,11 +60,11 @@ class MyRob(CRobLinkAngs):
                     self.setVisitingLed(False)
                 if self.measures.returningLed==True:
                     self.setReturningLed(False)
-                self.goC1()
+                self.wander()
             
 
     def wander(self):
-        center_id = 0
+        """ center_id = 0
         left_id = 1
         right_id = 2
         back_id = 3
@@ -82,10 +82,12 @@ class MyRob(CRobLinkAngs):
             self.driveMotors(0.0,0.1)
         else:
             print('Go')
-            self.driveMotors(0.1,0.1)
+            self.driveMotors(0.1,0.1) """
+
+        self.wanderC1()
 
 
-    def goC1(self):
+    def wanderC1(self):
         print(self.measures.lineSensor)
         if self.measures.lineSensor[0] == '1':
             print('Rotate left')
