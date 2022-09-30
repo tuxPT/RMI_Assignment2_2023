@@ -1,0 +1,9 @@
+center of map = (11, 25)
+map size = 41 lines x 29 columns
+
+distance between sensors = 0.08
+line width = 0.2 
+
+line sensor location = 0.438
+
+
