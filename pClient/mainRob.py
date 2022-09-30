@@ -8,8 +8,18 @@ CELLROWS=7
 CELLCOLS=14
 
 class MyRob(CRobLinkAngs):
-    def __init__(self, rob_name, rob_id, angles, host):
+    def __init__(self, rob_name, rob_id, angles, host, challenge, outfile):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
+        self.challenge = challenge
+        self.outfile = outfile
+        if self.challenge == "2":
+            self.map = [[" " for j in range(1,50)] for i in range(1,22)]
+            print(len(self.map)*len(self.map[0]))
+            self.map[10][24] = "I"
+            print(self.map)
+
+
+            
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
     # to know if there is a wall on top of cell(i,j) (i in 0..5), check if the value of labMap[i*2+1][j*2] is space or not
@@ -27,6 +37,9 @@ class MyRob(CRobLinkAngs):
 
         state = 'stop'
         stopped_state = 'run'
+
+        self.readSensors()
+        self.diffpos = [24 - self.measures.x, 10 - self.measures.y]
 
         while True:
             self.readSensors()
@@ -84,7 +97,10 @@ class MyRob(CRobLinkAngs):
             print('Go')
             self.driveMotors(0.1,0.1) """
 
-        self.wanderC1()
+        if self.challenge == "1":
+            self.wanderC1()
+        elif self.challenge == "2":
+            self.wanderC2()
 
 
     def wanderC1(self):
@@ -104,7 +120,56 @@ class MyRob(CRobLinkAngs):
         elif '1' in self.measures.lineSensor[2:5]:
             print('Go')
             self.driveMotors(0.15, 0.15)
+
+
+    def wanderC2(self):
+        print(self.measures.lineSensor)
+
+        x,y = self.get_correct_measures()
+
+        x = round(x)
+
+        y = 20 - round(y)
+
+        print({x},{y})
+
+        self.map[y][x] = "X"
+        if self.measures.lineSensor[0] == '1':
+            print('Rotate left')
+            self.driveMotors(-0.12,0.15)
+        elif self.measures.lineSensor[6] == '1':
+            print('Rotate right')
+            self.driveMotors(0.15,-0.12)
+        elif self.measures.lineSensor[1] == '1':
+            print('Adjust left')
+            self.driveMotors(0.08,0.15)
+        elif self.measures.lineSensor[5] == '1':
+            print('Adjust right')
+            self.driveMotors(0.15,0.08)
+        elif '1' in self.measures.lineSensor[2:5]:
+            print('Go')
+            self.driveMotors(0.15, 0.15)
+
+        self.save_map()
  
+
+    def save_map(self):
+        s = ""
+        for row in self.map:
+            for val in row:
+                s += str(val)
+            s += "\n"
+
+        print(s)
+        with open(outfile, "w+") as f:
+            f.truncate(0)
+            f.write(s)
+            f.close()
+        
+    def get_correct_measures(self):
+        m = [self.measures.x + self.diffpos[0], self.measures.y + self.diffpos[1]]
+        #print("measures: " + str(m))
+        return m
 
 class Map():
     def __init__(self, filename):
@@ -138,6 +203,7 @@ rob_name = "pClient1"
 host = "localhost"
 pos = 1
 mapc = None
+challenge = 1
 
 for i in range(1, len(sys.argv),2):
     if (sys.argv[i] == "--host" or sys.argv[i] == "-h") and i != len(sys.argv) - 1:
@@ -148,12 +214,16 @@ for i in range(1, len(sys.argv),2):
         rob_name = sys.argv[i + 1]
     elif (sys.argv[i] == "--map" or sys.argv[i] == "-m") and i != len(sys.argv) - 1:
         mapc = Map(sys.argv[i + 1])
+    elif (sys.argv[i] == "--challenge" or sys.argv[i] == "-c") and i != len(sys.argv) - 1:
+        challenge = sys.argv[i + 1]
+    elif (sys.argv[i] == "--outfile" or sys.argv[i] == "-f") and i != len(sys.argv) - 1:
+        outfile = sys.argv[i + 1]
     else:
         print("Unkown argument", sys.argv[i])
         quit()
 
 if __name__ == '__main__':
-    rob=MyRob(rob_name,pos,[0.0,60.0,-60.0,180.0],host)
+    rob=MyRob(rob_name,pos,[0.0,60.0,-60.0,180.0],host, challenge, outfile)
     if mapc != None:
         rob.setMap(mapc.labMap)
         rob.printMap()
