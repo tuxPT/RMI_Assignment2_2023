@@ -135,6 +135,8 @@ class MyRob(CRobLinkAngs):
 
         print({x},{y})
 
+        print({self.measures.compass})
+
         # every odd line
         if y % 2 == 1:
             self.map[y][x] = "|"
@@ -144,9 +146,13 @@ class MyRob(CRobLinkAngs):
         else:
             pass
         if self.measures.lineSensor[0] == '1':
+            self.unknown_pos(x, y, 'left')
+
             print('Rotate left')
             self.driveMotors(-0.12,0.15)
         elif self.measures.lineSensor[6] == '1':
+            self.unknown_pos(x, y, 'right')
+            
             print('Rotate right')
             self.driveMotors(0.15,-0.12)
         elif self.measures.lineSensor[1] == '1':
@@ -160,7 +166,42 @@ class MyRob(CRobLinkAngs):
             self.driveMotors(0.15, 0.15)
 
         self.save_map()
- 
+
+    def unknown_pos(self, x, y, leftright):
+        calc = [0, 0]
+        # up
+        if 80 < self.measures.compass < 100:
+            if leftright == 'left':
+                calc = [-1, 0]
+            else:
+                calc = [1, 0]
+        # right
+        elif -10 < self.measures.compass < 10:
+            if leftright == 'left':
+                calc = [0, 1]
+            else:
+                calc = [0, -1]
+        # left
+        elif -170 < self.measures.compass < -180 or 170 < self.measures.compass < 180:
+            if leftright == 'left':
+                calc = [0, -1]
+            else:
+                calc = [0, 1]
+        # down
+        elif -100 < self.measures.compass < -80:
+            if leftright == 'left':
+                calc = [1, 0]
+            else:
+                calc = [-1, 0]
+            
+        x+= calc[0]
+        y+= calc[1]
+
+        if self.map[y][x] not in ['-', '|', 'I'] and calc != [0, 0]:
+            if y % 2 == 1 and x % 2 == 0:
+                self.map[y][x] = "?"
+            elif x % 2 == 1 and y % 2 == 0:
+                self.map[y][x] = "?"
 
     def save_map(self):
         s = ""
