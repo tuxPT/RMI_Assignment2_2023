@@ -128,12 +128,21 @@ class MyRob(CRobLinkAngs):
         x,y = self.get_correct_measures()
 
         x = round(x)
-
-        y = 20 - round(y)
+        y = round(y)
+        
+        # height correction
+        #y = 20 - round(y)
 
         print({x},{y})
 
-        self.map[y][x] = "X"
+        # every odd line
+        if y % 2 == 1:
+            self.map[y][x] = "|"
+        # every odd column and even line
+        elif x % 2 == 1:
+            self.map[y][x] = "-"
+        else:
+            pass
         if self.measures.lineSensor[0] == '1':
             print('Rotate left')
             self.driveMotors(-0.12,0.15)
@@ -155,7 +164,7 @@ class MyRob(CRobLinkAngs):
 
     def save_map(self):
         s = ""
-        for row in self.map:
+        for row in reversed(self.map):
             for val in row:
                 s += str(val)
             s += "\n"
