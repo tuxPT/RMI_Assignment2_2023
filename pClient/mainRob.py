@@ -145,20 +145,30 @@ class MyRob(CRobLinkAngs):
             self.map[y][x] = "-"
         else:
             pass
-        if self.measures.lineSensor[0] == '1':
+
+        if self.measures.lineSensor.count('1') == 7:
             self.unknown_pos(x, y, 'left')
+            self.unknown_pos(x, y, 'right')
+
+
+        if self.measures.lineSensor[0] == '1':
+            if self.measures.lineSensor.count('1') > 3:
+                self.unknown_pos(x, y, 'left')
 
             print('Rotate left')
             self.driveMotors(-0.12,0.15)
         elif self.measures.lineSensor[6] == '1':
-            self.unknown_pos(x, y, 'right')
+            if self.measures.lineSensor.count('1') > 3:
+                self.unknown_pos(x, y, 'right')
             
             print('Rotate right')
             self.driveMotors(0.15,-0.12)
         elif self.measures.lineSensor[1] == '1':
+            
             print('Adjust left')
             self.driveMotors(0.08,0.15)
         elif self.measures.lineSensor[5] == '1':
+            
             print('Adjust right')
             self.driveMotors(0.15,0.08)
         elif '1' in self.measures.lineSensor[2:5]:
