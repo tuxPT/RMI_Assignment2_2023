@@ -2,6 +2,7 @@
 import sys
 from croblink import *
 from math import *
+import math
 import xml.etree.ElementTree as ET
 
 CELLROWS=7
@@ -12,11 +13,13 @@ class MyRob(CRobLinkAngs):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
         self.challenge = challenge
         self.outfile = outfile
+        if self.challenge == "1":
+            self.track = []
         if self.challenge == "2":
             self.map = [[" " for j in range(1,50)] for i in range(1,22)]
-            print(len(self.map)*len(self.map[0]))
+            #print(len(self.map)*len(self.map[0]))
             self.map[10][24] = "I"
-            print(self.map)
+            #print(self.map)
 
 
             
@@ -104,27 +107,40 @@ class MyRob(CRobLinkAngs):
 
 
     def wanderC1(self):
-        print(self.measures.lineSensor)
+
+        print(f'{"Line sensor: "}{self.measures.lineSensor}')
+        
+        # Rotate left
         if self.measures.lineSensor[0] == '1':
-            print('Rotate left')
-            self.driveMotors(-0.12,0.15)
+            #self.driveMotors(-0.12,0.15)
+            self.driveMotors(-0.08,0.1)
+            self.track.append("left")
+
+        # Rotate right
         elif self.measures.lineSensor[6] == '1':
-            print('Rotate right')
-            self.driveMotors(0.15,-0.12)
+            #self.driveMotors(0.15,-0.12)
+            self.driveMotors(0.1,-0.08)
+            self.track.append("right")  
+
+        # Adjust left
         elif self.measures.lineSensor[1] == '1':
-            print('Adjust left')
-            self.driveMotors(0.08,0.15)
+            #self.driveMotors(0.08,0.15)
+            self.driveMotors(0.08,0.1)
+
+        # Adjust right
         elif self.measures.lineSensor[5] == '1':
-            print('Adjust right')
-            self.driveMotors(0.15,0.08)
+            #self.driveMotors(0.15,0.08)
+            self.driveMotors(0.1,0.08)
+
+        # Forward
         elif '1' in self.measures.lineSensor[2:5]:
-            print('Go')
-            self.driveMotors(0.15, 0.15)
+            #self.driveMotors(0.15, 0.15)
+            self.driveMotors(0.1, 0.1)      
+
 
 
     def wanderC2(self):
-        print(self.measures.lineSensor)
-
+        
         x,y = self.get_correct_measures()
 
         x = round(x)
@@ -133,9 +149,9 @@ class MyRob(CRobLinkAngs):
         # height correction
         #y = 20 - round(y)
 
-        print({x},{y})
-
-        print({self.measures.compass})
+        print(f'{"Pos: "}{x},{y}')
+        print(f'{"Compass: "}{self.measures.compass}')
+        print(f'{"Line sensor: "}{self.measures.lineSensor}')
 
         # every odd line
         if y % 2 == 1:
@@ -146,36 +162,69 @@ class MyRob(CRobLinkAngs):
         else:
             pass
 
-        if self.measures.lineSensor.count('1') == 7:
-            self.unknown_pos(x, y, 'left')
-            self.unknown_pos(x, y, 'right')
 
 
-        if self.measures.lineSensor[0] == '1':
-            if self.measures.lineSensor.count('1') > 3:
+
+        # if the agent makes a complete lap
+        if (({x,y} == {10,23}) or ({x,y} ==  {9,24})):
+
+            # go for unexplored paths
+            #self.driveMotors(0,0)
+            
+            path = self.find_next(x, y)
+
+            print(f'{"First unexplored path: "}{path}')
+
+        else:
+            # if there is a path both to the right and to the left
+            if self.measures.lineSensor.count('1') == 7:
                 self.unknown_pos(x, y, 'left')
-
-            print('Rotate left')
-            self.driveMotors(-0.12,0.15)
-        elif self.measures.lineSensor[6] == '1':
-            if self.measures.lineSensor.count('1') > 3:
                 self.unknown_pos(x, y, 'right')
+
+            # if there is a path to the left
+            if self.measures.lineSensor[0] == '1':
+                if self.measures.lineSensor.count('1') > 3:
+                    self.unknown_pos(x, y, 'left')
+
+                print('Rotate left')
+                self.driveMotors(-0.12,0.15)
             
-            print('Rotate right')
-            self.driveMotors(0.15,-0.12)
-        elif self.measures.lineSensor[1] == '1':
+            # if there is a path to the left
+            elif self.measures.lineSensor[6] == '1':
+                if self.measures.lineSensor.count('1') > 3:
+                    self.unknown_pos(x, y, 'right')
+                
+                print('Rotate right')
+                self.driveMotors(0.15,-0.12)
+
+            # if the agent is swinging left   
+            elif self.measures.lineSensor[1] == '1':
+                print('Adjust left')
+                self.driveMotors(0.08,0.15)
+
+            # if the agent is swinging right   
+            elif self.measures.lineSensor[5] == '1':
+                print('Adjust right')
+                self.driveMotors(0.15,0.08)
+
+            # if there is a path forward
+            elif '1' in self.measures.lineSensor[2:5]:
+                print('Forward')
+                self.driveMotors(0.15, 0.15)
             
-            print('Adjust left')
-            self.driveMotors(0.08,0.15)
-        elif self.measures.lineSensor[5] == '1':
-            
-            print('Adjust right')
-            self.driveMotors(0.15,0.08)
-        elif '1' in self.measures.lineSensor[2:5]:
-            print('Go')
-            self.driveMotors(0.15, 0.15)
+            # if it is a dead end
+            elif self.measures.lineSensor.count('0') == 7:
+                self.driveMotors(0,0)
+                self.driveMotors(0.15,-0.15)
 
         self.save_map()
+        
+
+    def find_next(self, x, y):
+        unexplored = [(row.index('?'), index) for index, row in enumerate(reversed(self.map)) if '?' in row]
+        
+        return min(unexplored, key=lambda spot: math.dist(spot, (x, y)))
+            
 
     def unknown_pos(self, x, y, leftright):
         calc = [0, 0]
