@@ -4,9 +4,36 @@ from croblink import *
 from math import *
 import math
 import xml.etree.ElementTree as ET
+from tree_search import *
 
 CELLROWS=7
 CELLCOLS=14
+
+class Domain(SearchDomain):
+
+    def __init__(self, connections):
+        self.connections = connections # all knwon cells
+
+    def actions (self, cell):
+        actlist = []
+        for (c1, c2) in self.connections:
+            if (c1 == cell):
+                actlist = actlist + [(c1, c2)]    
+            elif (c2 == cell): 
+                actlist = actlist + [(c2, c1)]
+        return   actlist
+
+    def result(self, cell, action):
+        #return
+        (c1, c2) = action
+        if c1 == cell:
+             return c2
+
+    def cost (self, pos, action):
+        return 1
+
+    def heuristic(self, pos, goal):
+        return math.hypot(pos[0]-goal[0], pos[1]-goal[1])
 
 class MyRob(CRobLinkAngs):
     def __init__(self, rob_name, rob_id, angles, host, challenge, outfile):
@@ -20,6 +47,11 @@ class MyRob(CRobLinkAngs):
             #print(len(self.map)*len(self.map[0]))
             self.map[10][24] = "I"
             #print(self.map)
+            self.unexploredpaths = []
+            self.connections = []
+            self.neighborhood = []
+            self.pathtoexplore = []
+            self.exploredpath = []
 
 
             
@@ -145,9 +177,6 @@ class MyRob(CRobLinkAngs):
 
         x = round(x)
         y = round(y)
-        
-        # height correction
-        #y = 20 - round(y)
 
         print(f'{"Pos: "}{x},{y}')
         print(f'{"Compass: "}{self.measures.compass}')
@@ -163,17 +192,14 @@ class MyRob(CRobLinkAngs):
             pass
 
 
-
-
-        # if the agent makes a complete lap
-        if (({x,y} == {10,23}) or ({x,y} ==  {9,24})):
-
+        # if the agent makes a complete lap (for search testing purposes)
+        if (({x,y} == {9,24})):
+            self.driveMotors(0,0)
             # go for unexplored paths
-            #self.driveMotors(0,0)
-            
-            path = self.find_next(x, y)
-
-            print(f'{"First unexplored path: "}{path}')
+            unexploredcell = self.find_next(x, y)
+            print(f'{"UNEXPLROED: "}{unexploredcell}')
+            path = self.get_best_path([24,10], unexploredcell)
+            print(f'{"First path to explore: "}{path}')
 
         else:
             # if there is a path both to the right and to the left
@@ -211,6 +237,7 @@ class MyRob(CRobLinkAngs):
             elif '1' in self.measures.lineSensor[2:5]:
                 print('Forward')
                 self.driveMotors(0.15, 0.15)
+                self.unknown_pos(x, y, 'front')
             
             # if it is a dead end
             elif self.measures.lineSensor.count('0') == 7:
@@ -218,44 +245,96 @@ class MyRob(CRobLinkAngs):
                 self.driveMotors(0.15,-0.15)
 
         self.save_map()
-        
 
+    # returns the closest non explored point to the current position
     def find_next(self, x, y):
-        unexplored = [(row.index('?'), index) for index, row in enumerate(reversed(self.map)) if '?' in row]
-        
-        return min(unexplored, key=lambda spot: math.dist(spot, (x, y)))
-            
+        # pesquisa no mapa em vez da lista
+        # unexplored = [(row.index('?'), index) for index, row in enumerate(reversed(self.map)) if '?' in row]
+        # min(unexplored, key=lambda spot: math.dist(spot, (x, y)))
+        minimum = 100000
+        target = []
+        for point in self.unexploredpaths: 
+            if point != [x,y]:
+                dist = math.dist([x,y], point)
+                if dist < minimum:
+                    minimum = dist
+                    target = point
 
-    def unknown_pos(self, x, y, leftright):
+        return target
+
+    # based on tree_search module and list of connections, returns the best path from origin to destination
+    def get_best_path(self, origin, destination):
+        self.pathtoexplore = [origin]
+        self.pathtoexplore += SearchTree(SearchProblem(Domain(self.connections), origin, destination), 'a*').search(2000)[0]
+
+        return self.pathtoexplore
+
+    def unknown_pos(self, x, y, direction):
         calc = [0, 0]
+        self.neighborhood = []
         # up
         if 80 < self.measures.compass < 100:
-            if leftright == 'left':
+            if direction == 'left':
                 calc = [-1, 0]
+            elif direction == 'front':
+                calc = [0, 1]
             else:
                 calc = [1, 0]
         # right
         elif -10 < self.measures.compass < 10:
-            if leftright == 'left':
+            if direction == 'left':
                 calc = [0, 1]
+            elif direction == 'front':
+                calc = [1, 0]
             else:
                 calc = [0, -1]
         # left
         elif -170 < self.measures.compass < -180 or 170 < self.measures.compass < 180:
-            if leftright == 'left':
+            if direction == 'left':
                 calc = [0, -1]
+            elif direction == 'front':
+                calc = [-1, 0]
             else:
                 calc = [0, 1]
         # down
         elif -100 < self.measures.compass < -80:
-            if leftright == 'left':
+            if direction == 'left':
                 calc = [1, 0]
+            elif direction == 'front':
+                calc = [0, -1]
             else:
                 calc = [-1, 0]
-            
+
+
+        # calculate neighbor cells and add them to a list of connections between cells
+        # add the current cell to a list of explored cells
+        current_cell = [x, y] 
+        nx = x + (calc[0]*2)
+        ny = y + (calc[1]*2)
+        
+        if [nx, ny] != current_cell and current_cell[0]%2==0 and current_cell[1]%2==0:
+            self.neighborhood.append([nx, ny])
+            if current_cell not in self.exploredpath:
+                self.exploredpath.append(current_cell)
+            if ([nx, ny] not in self.unexploredpaths) and ([nx, ny] not in self.exploredpath):
+                self.unexploredpaths.append([nx, ny])
+
+        if current_cell in self.unexploredpaths:
+            self.unexploredpaths.remove(current_cell)
+        
+        #print(f'{"Neighbor: "}{self.neighborhood}')
+        #print(f'{"Unexplored paths: "}{self.unexploredpaths}')
+        #print(f'{"Explored paths: "}{self.exploredpaths}')
+
+        self.connections += [[current_cell, neighbor_cell] for neighbor_cell in self.neighborhood
+            if [current_cell, neighbor_cell] not in self.connections 
+            and [neighbor_cell, current_cell] not in self.connections] 
+        
+        #print(f'{"Connections list: "}{self.connections}')
+
         x+= calc[0]
         y+= calc[1]
-
+        
         if self.map[y][x] not in ['-', '|', 'I'] and calc != [0, 0]:
             if y % 2 == 1 and x % 2 == 0:
                 self.map[y][x] = "?"
