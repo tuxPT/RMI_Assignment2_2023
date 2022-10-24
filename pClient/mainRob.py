@@ -9,6 +9,54 @@ from tree_search import *
 CELLROWS=7
 CELLCOLS=14
 
+
+class PIDController():
+    def __init__(self, kp, ki, kd, sample, kp_rot, ki_rot, kd_rot):
+        self.kp = kp
+        self.ki = ki
+        self.kd = kd
+        self.sample = 0.050
+        self.error_1 = 0
+        self.error_2 = 0
+        self.out_1 = 0
+        self.td = 0.0
+        self.delta = 0.05
+        self.max_out = 0.15
+        self.error_1_rot = 0
+        self.error_2_rot = 0
+        self.out_1_rot = 0
+        self.kp_rot = kp_rot
+        self.ki_rot = ki_rot
+        self.kd_rot = kd_rot
+        self.k0=self.kp*(1 + self.sample/self.ki + self.kd/self.sample)
+        self.k1=-self.kp*(1 + 2*self.kd/self.sample)               
+        self.k2=self.kp*self.kd/self.sample
+        self.k0_rot=self.kp_rot*(1 + self.sample/self.ki_rot + self.kd_rot/self.sample)
+        self.k1_rot=-self.kp_rot*(1 + 2*self.kd_rot/self.sample)               
+        self.k2_rot=self.kp_rot*self.kd_rot/self.sample
+
+
+    def go(self, set_vel, curr_vel, rot=False): 
+        if rot:
+            error = set_vel - curr_vel
+            out = self.out_1_rot + self.k0_rot*error + self.k1_rot*self.error_1_rot + self.k2_rot*self.error_2_rot
+            
+            self.out_1_rot = out
+            self.error_2_rot = self.error_1_rot
+            self.error_1_rot = error
+        else:
+            error = set_vel - curr_vel
+            out = self.out_1 + self.k0*error + self.k1*self.error_1 + self.k2*self.error_2
+            
+            self.out_1 = out
+            self.error_2 = self.error_1
+            self.error_1 = error
+
+        if self.out_1>self.max_out:
+            self.out_1 = self.max_out
+        if self.out_1<-self.max_out:
+            self.out_1 = -self.max_out
+        return out
 class Domain(SearchDomain):
 
     def __init__(self, connections):
@@ -40,6 +88,7 @@ class MyRob(CRobLinkAngs):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
         self.challenge = challenge
         self.outfile = outfile
+        self.pid_Controller = PIDController(0.03, math.inf, 0.000001, 0.050, 1, 25, 0.001)
         if self.challenge == "1":
             self.track = []
         if self.challenge == "2":
@@ -137,12 +186,17 @@ class MyRob(CRobLinkAngs):
         elif self.challenge == "2":
             self.wanderC2()
 
+    def go(self,lin,k,m,r):
+        rot = k*(m-r)
+        lpow = lin + (rot/2)
+        rpow = lin - (rot/2)
+        return [lpow, rpow]
 
     def wanderC1(self):
 
         print(f'{"Line sensor: "}{self.measures.lineSensor}')
-        
-        # Rotate left
+
+        """ # Rotate left
         if self.measures.lineSensor[0] == '1':
             #self.driveMotors(-0.12,0.15)
             self.driveMotors(-0.08,0.1)
@@ -152,9 +206,25 @@ class MyRob(CRobLinkAngs):
         elif self.measures.lineSensor[6] == '1':
             #self.driveMotors(0.15,-0.12)
             self.driveMotors(0.1,-0.08)
-            self.track.append("right")  
+            self.track.append("right")   """
+        if self.measures.lineSensor[0] == '1':
+            #pow = self.pid_Controller.go(3/7, self.measures.lineSensor.count("1")/7)
+            self.driveMotors(-0.12, 0.15)
 
-        # Adjust left
+        elif self.measures.lineSensor[6] == '1':
+            #pow = self.pid_Controller.go(3/7, self.measures.lineSensor.count("1")/7)
+            self.driveMotors(0.15, -0.12)
+        
+        
+        
+
+        else:
+            pow = 0.15 - self.pid_Controller.go(3/7, self.measures.lineSensor.count("1")/7)
+            lpow, rpow = self.go(pow, 0.1, self.measures.lineSensor.count('1'), 3)
+            self.driveMotors(lpow, rpow)
+
+
+        """ # Adjust left
         elif self.measures.lineSensor[1] == '1':
             #self.driveMotors(0.08,0.15)
             self.driveMotors(0.08,0.1)
@@ -167,7 +237,7 @@ class MyRob(CRobLinkAngs):
         # Forward
         elif '1' in self.measures.lineSensor[2:5]:
             #self.driveMotors(0.15, 0.15)
-            self.driveMotors(0.1, 0.1)      
+            self.driveMotors(0.1, 0.1)       """
 
 
 
@@ -392,6 +462,7 @@ host = "localhost"
 pos = 1
 mapc = None
 challenge = 1
+outfile = 'solution'
 
 for i in range(1, len(sys.argv),2):
     if (sys.argv[i] == "--host" or sys.argv[i] == "-h") and i != len(sys.argv) - 1:
