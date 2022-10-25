@@ -93,14 +93,19 @@ class MyRob(CRobLinkAngs):
             self.track = []
         if self.challenge == "2":
             self.map = [[" " for j in range(1,50)] for i in range(1,22)]
+            self.path_map = [[" " for j in range(1,50)] for i in range(1,22)]
+            self.path = []
             #print(len(self.map)*len(self.map[0]))
             self.map[10][24] = "I"
             #print(self.map)
             self.unexploredpaths = []
-            self.connections = []
+            self.connections = [[[24,9],[24,10]]]
             self.neighborhood = []
             self.pathtoexplore = []
             self.exploredpath = []
+            self.has_path = 'random'
+            self.rotation = None
+            self.dest_cell = None
 
 
             
@@ -207,6 +212,7 @@ class MyRob(CRobLinkAngs):
             #self.driveMotors(0.15,-0.12)
             self.driveMotors(0.1,-0.08)
             self.track.append("right")   """
+        
         if self.measures.lineSensor[0] == '1':
             #pow = self.pid_Controller.go(3/7, self.measures.lineSensor.count("1")/7)
             self.driveMotors(-0.12, 0.15)
@@ -214,10 +220,6 @@ class MyRob(CRobLinkAngs):
         elif self.measures.lineSensor[6] == '1':
             #pow = self.pid_Controller.go(3/7, self.measures.lineSensor.count("1")/7)
             self.driveMotors(0.15, -0.12)
-        
-        
-        
-
         else:
             pow = 0.15 - self.pid_Controller.go(3/7, self.measures.lineSensor.count("1")/7)
             lpow, rpow = self.go(pow, 0.1, self.measures.lineSensor.count('1'), 3)
@@ -255,64 +257,120 @@ class MyRob(CRobLinkAngs):
         # every odd line
         if y % 2 == 1:
             self.map[y][x] = "|"
+        # every odd column and even linedist
         # every odd column and even line
         elif x % 2 == 1:
             self.map[y][x] = "-"
         else:
             pass
+        if self.has_path == 'path_finding':
+            if self.dest_cell == None:
+                self.dest_cell = self.path.pop()
+            if self.rotation and abs(self.rotation - self.measures.compass) > 10:
+                lpow, rpow = self.go(0.15, 0.1, self.rotation, self.measures.compass)
+                self.driveMotors(lpow, rpow)
+            elif [x, y] == self.dest_cell:
+                if len(self.path):
+                    self.dest_cell = self.path.pop()
+                else:
+                    # go for unexplored paths
+                    unexploredcell = self.find_next(x, y)
+                    self.path = self.get_best_path([x,y], unexploredcell)
+                    for cell in self.path:
+                        self.path_map[cell[1]][cell[0]] = 'P'
+                    self.save_map(self.path_map, "path.txt")
+                horizontal = self.dest_cell[0] - x
+                vertical = self.dest_cell[1] - y
+                if horizontal > 0:
+                    self.rotation = 0
+                elif horizontal < 0:
+                    self.rotation = -180
+                elif vertical > 0:
+                    self.rotation = 90
+                elif vertical < 0:
+                    self.rotation = -90
+                else:
+                    print('ACABOU')
+            else:
+                self.rotation = None
+                # if the agent is swinging left   
+                if self.measures.lineSensor[1] == '1':
+                    print('Adjust left')
+                    self.driveMotors(0.08,0.15)
 
+                # if the agent is swinging right   
+                elif self.measures.lineSensor[5] == '1':
+                    print('Adjust right')
+                    self.driveMotors(0.15,0.08)
 
-        # if the agent makes a complete lap (for search testing purposes)
-        if (({x,y} == {9,24})):
-            self.driveMotors(0,0)
-            # go for unexplored paths
-            unexploredcell = self.find_next(x, y)
-            print(f'{"UNEXPLROED: "}{unexploredcell}')
-            path = self.get_best_path([24,10], unexploredcell)
-            print(f'{"First path to explore: "}{path}')
-
-        else:
-            # if there is a path both to the right and to the left
-            if self.measures.lineSensor.count('1') == 7:
-                self.unknown_pos(x, y, 'left')
-                self.unknown_pos(x, y, 'right')
-
-            # if there is a path to the left
-            if self.measures.lineSensor[0] == '1':
-                if self.measures.lineSensor.count('1') > 3:
-                    self.unknown_pos(x, y, 'left')
-
-                print('Rotate left')
-                self.driveMotors(-0.12,0.15)
-            
-            # if there is a path to the left
-            elif self.measures.lineSensor[6] == '1':
-                if self.measures.lineSensor.count('1') > 3:
-                    self.unknown_pos(x, y, 'right')
+                # if there is a path forward
+                elif '1' in self.measures.lineSensor[2:5]:
+                    print('Forward')
+                    self.driveMotors(0.15, 0.15)
+                    self.unknown_pos(x, y, 'front')
                 
-                print('Rotate right')
-                self.driveMotors(0.15,-0.12)
-
-            # if the agent is swinging left   
-            elif self.measures.lineSensor[1] == '1':
-                print('Adjust left')
-                self.driveMotors(0.08,0.15)
-
-            # if the agent is swinging right   
-            elif self.measures.lineSensor[5] == '1':
-                print('Adjust right')
-                self.driveMotors(0.15,0.08)
-
-            # if there is a path forward
-            elif '1' in self.measures.lineSensor[2:5]:
-                print('Forward')
-                self.driveMotors(0.15, 0.15)
-                self.unknown_pos(x, y, 'front')
-            
-            # if it is a dead end
-            elif self.measures.lineSensor.count('0') == 7:
+                # if it is a dead end
+                elif self.measures.lineSensor.count('0') == 7:
+                    self.driveMotors(0,0)
+                    self.driveMotors(0.15,-0.15)
+                
+        else:
+            # if the agent makes a complete lap (for search testing purposes)
+            if (({x,y} == {9,24})):
                 self.driveMotors(0,0)
-                self.driveMotors(0.15,-0.15)
+                # go for unexplored paths
+                unexploredcell = self.find_next(x, y)
+                print(f'{"UNEXPLROED: "}{unexploredcell}')
+                self.path = self.get_best_path([24,9], unexploredcell)
+                for cell in self.path:
+                    self.path_map[cell[1]][cell[0]] = 'P'
+                
+                self.save_map(self.path_map, "path.txt")
+
+                self.has_path = 'path_finding'
+
+            else:
+                # if there is a path both to the right and to the left
+                if self.measures.lineSensor.count('1') == 7:
+                    self.unknown_pos(x, y, 'left')
+                    self.unknown_pos(x, y, 'right')
+
+                # if there is a path to the left
+                if self.measures.lineSensor[0] == '1':
+                    if self.measures.lineSensor.count('1') > 3:
+                        self.unknown_pos(x, y, 'left')
+
+                    print('Rotate left')
+                    self.driveMotors(-0.12,0.15)
+                
+                # if there is a path to the left
+                elif self.measures.lineSensor[6] == '1':
+                    if self.measures.lineSensor.count('1') > 3:
+                        self.unknown_pos(x, y, 'right')
+                    
+                    print('Rotate right')
+                    self.driveMotors(0.15,-0.12)
+
+                # if the agent is swinging left   
+                elif self.measures.lineSensor[1] == '1':
+                    print('Adjust left')
+                    self.driveMotors(0.08,0.15)
+
+                # if the agent is swinging right   
+                elif self.measures.lineSensor[5] == '1':
+                    print('Adjust right')
+                    self.driveMotors(0.15,0.08)
+
+                # if there is a path forward
+                elif '1' in self.measures.lineSensor[2:5]:
+                    print('Forward')
+                    self.driveMotors(0.15, 0.15)
+                    self.unknown_pos(x, y, 'front')
+                
+                # if it is a dead end
+                elif self.measures.lineSensor.count('0') == 7:
+                    self.driveMotors(0,0)
+                    self.driveMotors(0.15,-0.15)
 
         self.save_map()
 
@@ -335,6 +393,10 @@ class MyRob(CRobLinkAngs):
     # based on tree_search module and list of connections, returns the best path from origin to destination
     def get_best_path(self, origin, destination):
         self.pathtoexplore = [origin]
+        print("connections: " + str(self.connections))
+        print("origin: " + str(origin))
+        print("destination: " + str(destination))
+
         self.pathtoexplore += SearchTree(SearchProblem(Domain(self.connections), origin, destination), 'a*').search(2000)[0]
 
         return self.pathtoexplore
@@ -380,9 +442,9 @@ class MyRob(CRobLinkAngs):
         # add the current cell to a list of explored cells
         current_cell = [x, y] 
         nx = x + (calc[0]*2)
-        ny = y + (calc[1]*2)
+        ny = y + (calc[1])
         
-        if [nx, ny] != current_cell and current_cell[0]%2==0 and current_cell[1]%2==0:
+        if [nx, ny] != current_cell  and current_cell[0]%2==0 and current_cell[1]%2==0:
             self.neighborhood.append([nx, ny])
             if current_cell not in self.exploredpath:
                 self.exploredpath.append(current_cell)
@@ -411,15 +473,19 @@ class MyRob(CRobLinkAngs):
             elif x % 2 == 1 and y % 2 == 0:
                 self.map[y][x] = "?"
 
-    def save_map(self):
+    def save_map(self, map=None, fout=None):
+        if not map:
+            map = self.map
+        if not fout:
+            fout=self.outfile
         s = ""
-        for row in reversed(self.map):
+        for row in reversed(map):
             for val in row:
                 s += str(val)
             s += "\n"
 
         print(s)
-        with open(outfile, "w+") as f:
+        with open(fout, "w+") as f:
             f.truncate(0)
             f.write(s)
             f.close()
