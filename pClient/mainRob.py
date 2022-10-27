@@ -99,7 +99,7 @@ class MyRob(CRobLinkAngs):
             self.map[10][24] = "I"
             #print(self.map)
             self.unexploredpaths = []
-            self.connections = [[[24,9],[24,10]]]
+            self.connections = []
             self.neighborhood = []
             self.pathtoexplore = []
             self.exploredpath = []
@@ -192,7 +192,7 @@ class MyRob(CRobLinkAngs):
             self.wanderC2()
 
     def go(self,lin,k,m,r):
-        rot = k*(m-r)
+        rot = k*(m - r)
         lpow = lin + (rot/2)
         rpow = lin - (rot/2)
         return [lpow, rpow]
@@ -247,10 +247,10 @@ class MyRob(CRobLinkAngs):
         
         x,y = self.get_correct_measures()
 
+        print(f'{"Pos: "}{x},{y}')
         x = round(x)
         y = round(y)
 
-        print(f'{"Pos: "}{x},{y}')
         print(f'{"Compass: "}{self.measures.compass}')
         print(f'{"Line sensor: "}{self.measures.lineSensor}')
 
@@ -264,7 +264,117 @@ class MyRob(CRobLinkAngs):
         else:
             pass
         if self.has_path == 'path_finding':
-            if self.dest_cell == None:
+            x,y = self.get_correct_measures()
+            if abs(round(x) - x) < 0.05:
+                x = round(x)
+            else:
+                x = floor(x)
+            if abs(round(y) - y) < 0.05:
+                y = round(y)
+            else:
+                y = floor(y)
+            print('x, y = ' + str(x) + ', ' + str(y))
+            if [x, y] in self.unexploredpaths:
+                self.unexploredpaths.remove([x, y])
+            # path exists ?
+            if len(self.path):
+                print('HAS PATH')
+                if [x, y] in self.path:
+                    print('cell in path')
+                    self.path = self.path[1:]
+                    if len(self.path) == 0:
+                        print('GET PATH')
+                        # go for unexplored paths
+                        unexploredcell = self.find_next(x, y)
+                        self.path = self.get_best_path([2*round(x/2),2*round(y/2)], unexploredcell)
+                        self.path_map = [[" " for j in range(1,50)] for i in range(1,22)]
+                        for cell in self.path:
+                            self.path_map[cell[1]][cell[0]] = 'P'
+                        self.save_map(self.path_map, "path.txt")
+                    dest = self.path[0]
+                    horizontal = dest[0] - x
+                    vertical = dest[1] - y
+                    if horizontal > 0:
+                        self.rotation = 0
+                    elif horizontal < 0:
+                        self.rotation = -180
+                    elif vertical > 0:
+                        self.rotation = 90
+                    elif vertical < 0:
+                        self.rotation = -90
+                    else:
+                        self.rotation = None
+            # get path
+            else:
+                print('GET PATH')
+                # go for unexplored paths
+                unexploredcell = self.find_next(x, y)
+                self.path = self.get_best_path([2*round(x/2),2*round(y/2)], unexploredcell)
+                self.path_map = [[" " for j in range(1,50)] for i in range(1,22)]
+                for cell in self.path:
+                    self.path_map[cell[1]][cell[0]] = 'P'
+                self.save_map(self.path_map, "path.txt")
+                horizontal = self.path[0][0] - x
+                vertical = self.path[0][1] - y
+                if horizontal > 0:
+                    self.rotation = 0
+                elif horizontal < 0:
+                    self.rotation = -180
+                elif vertical > 0:
+                    self.rotation = 90
+                elif vertical < 0:
+                    self.rotation = -90
+            # rotate
+            if self.rotation and abs(self.rotation - self.measures.compass) > 5:
+                print('ROTATE')
+                pow = self.pid_Controller.go(self.rotation/180, self.measures.compass/180, True)
+                #lpow, rpow = self.go(0.0, 0.1, self.rotation, self.measures.compass)
+                self.driveMotors(-pow, pow)
+            # foward
+            else:
+                self.rotation = None
+                # if there is a path both to the right and to the left
+                if self.measures.lineSensor.count('1') == 7:
+                    self.unknown_pos(x, y, 'left')
+                    self.unknown_pos(x, y, 'right')
+
+                # if there is a path to the left
+                if self.measures.lineSensor[0] == '1':
+                    if self.measures.lineSensor.count('1') > 3:
+                        self.unknown_pos(x, y, 'left')
+                
+                # if there is a path to the left
+                elif self.measures.lineSensor[6] == '1':
+                    if self.measures.lineSensor.count('1') > 3:
+                        self.unknown_pos(x, y, 'right')
+
+                #self.rotation = None
+                print('FOWARD')
+                # if the agent is swinging left   
+                if self.measures.lineSensor[1] == '1':
+                    print('Adjust left')
+                    self.driveMotors(0.08,0.15)
+
+                # if the agent is swinging right   
+                elif self.measures.lineSensor[5] == '1':
+                    print('Adjust right')
+                    self.driveMotors(0.15,0.08)
+
+                # if there is a path forward
+                elif '1' in self.measures.lineSensor[2:5]:
+                    print('Forward')
+                    self.driveMotors(0.1, 0.1)
+                    self.unknown_pos(x, y, 'front')
+                
+                # if it is a dead end
+                elif self.measures.lineSensor.count('0') == 7:
+                    #self.driveMotors(0,0)
+                    self.driveMotors(0.15,-0.15)
+
+            print('rotation = ' + str(self.rotation))
+            print('PATH = ' + str(self.path))
+
+            """ if self.dest_cell == None:
                 print('DEST_CELL==None')
                 self.dest_cell = self.path[0]
                 print('DEST_CELL = ' + str(self.dest_cell))
@@ -282,7 +392,7 @@ class MyRob(CRobLinkAngs):
                 else:
                     # go for unexplored paths
                     unexploredcell = self.find_next(x, y)
-                    self.path = self.get_best_path([x,y], unexploredcell)
+                    self.path = self.get_best_path([2*round(x/2),2*round(y/2)], unexploredcell)
                     self.path_map = [[" " for j in range(1,50)] for i in range(1,22)]
                     for cell in self.path:
                         self.path_map[cell[1]][cell[0]] = 'P'
@@ -323,16 +433,26 @@ class MyRob(CRobLinkAngs):
                 elif self.measures.lineSensor.count('0') == 7:
                     self.driveMotors(0,0)
                     self.driveMotors(0.15,-0.15)
-            print('PATH = ' + str(self.path))
+            print('PATH = ' + str(self.path)) """
                 
         else:
             # if the agent makes a complete lap (for search testing purposes)
-            if (({x,y} == {9,24})):
+            if [x,y] == [24, 9]:
                 self.driveMotors(0,0)
                 # go for unexplored paths
                 unexploredcell = self.find_next(x, y)
                 print(f'{"UNEXPLROED: "}{unexploredcell}')
-                self.path = self.get_best_path([24,9], unexploredcell)
+                self.path = self.get_best_path([2*round(x/2), 2*round(y/2)], unexploredcell)
+                horizontal = self.path[0][0] - x
+                vertical = self.path[0][1] - y
+                if horizontal > 0:
+                    self.rotation = 0
+                elif horizontal < 0:
+                    self.rotation = -180
+                elif vertical > 0:
+                    self.rotation = 90
+                elif vertical < 0:
+                    self.rotation = -90
                 print(f'{"PATH: "}{self.path}')
                 for cell in self.path:
                     self.path_map[cell[1]][cell[0]] = 'P'
@@ -404,7 +524,7 @@ class MyRob(CRobLinkAngs):
 
     # based on tree_search module and list of connections, returns the best path from origin to destination
     def get_best_path(self, origin, destination):
-        self.pathtoexplore = [origin]
+        self.pathtoexplore = []
         print("connections: " + str(self.connections))
         print("origin: " + str(origin))
         print("destination: " + str(destination))
@@ -496,7 +616,7 @@ class MyRob(CRobLinkAngs):
                 s += str(val)
             s += "\n"
 
-        print(s)
+        #print(s)
         with open(fout, "w+") as f:
             f.truncate(0)
             f.write(s)
