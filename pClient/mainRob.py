@@ -265,17 +265,25 @@ class MyRob(CRobLinkAngs):
             pass
         if self.has_path == 'path_finding':
             if self.dest_cell == None:
-                self.dest_cell = self.path.pop()
+                print('DEST_CELL==None')
+                self.dest_cell = self.path[0]
+                print('DEST_CELL = ' + str(self.dest_cell))
+                self.path = self.path[1:]
             if self.rotation and abs(self.rotation - self.measures.compass) > 10:
-                lpow, rpow = self.go(0.15, 0.1, self.rotation, self.measures.compass)
-                self.driveMotors(lpow, rpow)
+                print('ROTATE')
+                lpow, rpow = self.go(0.0, 0.1, self.rotation, self.measures.compass)
+                self.driveMotors(-lpow, -rpow)
             elif [x, y] == self.dest_cell:
+                print('DEST_CELL==[x,y]')
                 if len(self.path):
-                    self.dest_cell = self.path.pop()
+                    self.dest_cell = self.path[0]
+                    print('DEST_CELL = ' + str(self.dest_cell))
+                    self.path = self.path[1:]
                 else:
                     # go for unexplored paths
                     unexploredcell = self.find_next(x, y)
                     self.path = self.get_best_path([x,y], unexploredcell)
+                    self.path_map = [[" " for j in range(1,50)] for i in range(1,22)]
                     for cell in self.path:
                         self.path_map[cell[1]][cell[0]] = 'P'
                     self.save_map(self.path_map, "path.txt")
@@ -291,7 +299,9 @@ class MyRob(CRobLinkAngs):
                     self.rotation = -90
                 else:
                     print('ACABOU')
+                print('rotation' + str(self.rotation))
             else:
+                print('ELSE FORWARD')
                 self.rotation = None
                 # if the agent is swinging left   
                 if self.measures.lineSensor[1] == '1':
@@ -313,6 +323,7 @@ class MyRob(CRobLinkAngs):
                 elif self.measures.lineSensor.count('0') == 7:
                     self.driveMotors(0,0)
                     self.driveMotors(0.15,-0.15)
+            print('PATH = ' + str(self.path))
                 
         else:
             # if the agent makes a complete lap (for search testing purposes)
@@ -322,6 +333,7 @@ class MyRob(CRobLinkAngs):
                 unexploredcell = self.find_next(x, y)
                 print(f'{"UNEXPLROED: "}{unexploredcell}')
                 self.path = self.get_best_path([24,9], unexploredcell)
+                print(f'{"PATH: "}{self.path}')
                 for cell in self.path:
                     self.path_map[cell[1]][cell[0]] = 'P'
                 
@@ -442,7 +454,7 @@ class MyRob(CRobLinkAngs):
         # add the current cell to a list of explored cells
         current_cell = [x, y] 
         nx = x + (calc[0]*2)
-        ny = y + (calc[1])
+        ny = y + (calc[1]*2)
         
         if [nx, ny] != current_cell  and current_cell[0]%2==0 and current_cell[1]%2==0:
             self.neighborhood.append([nx, ny])
