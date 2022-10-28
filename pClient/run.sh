@@ -1,6 +1,6 @@
 #!/bin/bash
 
-challenge="5"
+challenge="1"
 host="localhost"
 robname="theAgent"
 pos="0"
@@ -39,20 +39,11 @@ case $challenge in
         ;;
     2)
         # how to call agent for challenge 2
-        python3 mainRob.py -c 2 -h "$host" -p "$pos" -r "$robname" -f "$outfile"
+        python3 mainRob.py -c 2 -h "$host" -p "$pos" -r "$robname" -f "$outfile.map"
         ;;
     3)
         # how to call agent for challenge 3
-        python3 mainRob.py -c 3 -h "$host" -p "$pos" -r "$robname" -f "$outfile"
+        python3 mainRob.py -c 3 -h "$host" -p "$pos" -r "$robname" -f "$outfile.path"
         ;;
-    4)
-        # how to call agent for challenge 4
-        python3 mainRob.py -c 4 -h "$host" -p "$pos" -r "$robname" -f "$outfile"
-        ;;
-    5)
-        # how to call agent for challenge 5
-        python3 mainRob.py -c 5 -h "$host" -p "$pos" -r "$robname" -f "$outfile"
-        ;;
-
 esac
 
