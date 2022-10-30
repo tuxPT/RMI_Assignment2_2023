@@ -103,9 +103,9 @@ class MyRob(CRobLinkAngs):
             self.connections = []
             self.neighborhood = []
             self.pathtoexplore = []
-            self.exploredpath = []
+            self.exploredpath = set()
             self.has_path = 'path_finding'
-            self.rotation = None
+            self.rotation = 0
             self.dest = None
             self.beacons = []
 
@@ -203,27 +203,65 @@ class MyRob(CRobLinkAngs):
 
         self.write_known_path(x, y)
 
+        self.exploredpath.add((2*round(x/2), 2*round(y/2)))
         self.rem_unexplored(x, y)
 
         # if there is a path both to the right and to the left
         if self.measures.lineSensor.count('1') == 7:
+            print('HAS LEFTRIGHT')
             coef = self.get_neightbor_coeficient('left')
-            nx = 2*round(x/2) + 2*coef[0]
-            ny = 2*round(y/2) + 2*coef[1]
+            nx = x
+            ny = y
+            if self.rotation == 0:
+                nx += 0.432
+            elif self.rotation == -180:
+                nx -= 0.432
+            if self.rotation == 90:
+                ny += 0.432
+            elif self.rotation == -90:
+                ny -= 0.432
+            nx = 2*round(nx/2) + 2*coef[0]
+            ny = 2*round(ny/2) + 2*coef[1]
+            print('nx, ny: ' + str(nx) + ', ' + str(ny))
             self.add_unexplored(nx, ny)                 
             self.add_connection(nx, ny)
             coef = self.get_neightbor_coeficient('right')
-            nx = 2*round(x/2) + 2*coef[0]
-            ny = 2*round(y/2) + 2*coef[1]
+            nx = x
+            ny = y
+            if self.rotation == 0:
+                nx += 0.432
+            elif self.rotation == -180:
+                nx -= 0.432
+            if self.rotation == 90:
+                ny += 0.432
+            elif self.rotation == -90:
+                ny -= 0.432
+            nx = 2*round(nx/2) + 2*coef[0]
+            ny = 2*round(ny/2) + 2*coef[1]
+            print('nx, ny: ' + str(nx) + ', ' + str(ny))
             self.add_unexplored(nx, ny)              
             self.add_connection(nx, ny)
         # if there is a path to the left
         elif self.measures.lineSensor[0] == '1':
             if self.measures.lineSensor.count('1') > 3:
+                print('HAS LEFT')
                 coef = self.get_neightbor_coeficient('left')
-                nx = 2*round(x/2) + 2*coef[0]
-                ny = 2*round(y/2) + 2*coef[1]
-                self.add_unexplored(nx, ny)                
+                nx = x
+                ny = y
+                if self.rotation == 0:
+                    nx += 0.432
+                elif self.rotation == -180:
+                    nx -= 0.432
+                if self.rotation == 90:
+                    ny += 0.432
+                elif self.rotation == -90:
+                    ny -= 0.432
+                print('calc: ' + str(coef))
+                print('nx_orig, ny_orig: ' + str(nx) + ', ' + str(ny))
+                nx = 2*round(nx/2) + 2*coef[0]
+                ny = 2*round(ny/2) + 2*coef[1]
+                print('nx, ny: ' + str(nx) + ', ' + str(ny))
+                self.add_unexplored(nx, ny)            
                 self.add_connection(nx, ny)
 
             print('Rotate left')
@@ -231,24 +269,50 @@ class MyRob(CRobLinkAngs):
         # if there is a path to the left
         elif self.measures.lineSensor[6] == '1':
             if self.measures.lineSensor.count('1') > 3:
+                print('HAS RIGHT')
                 coef = self.get_neightbor_coeficient('right')
-                nx = 2*round(x/2) + 2*coef[0]
-                ny = 2*round(y/2) + 2*coef[1]
+                nx = x
+                ny = y
+                if self.rotation == 0:
+                    nx += 0.432
+                elif self.rotation == -180:
+                    nx -= 0.432
+                if self.rotation == 90:
+                    ny += 0.432
+                elif self.rotation == -90:
+                    ny -= 0.432
+                print('calc: ' + str(coef))
+                print('nx_orig, ny_orig: ' + str(nx) + ', ' + str(ny))
+                nx = 2*round(nx/2) + 2*coef[0]
+                ny = 2*round(ny/2) + 2*coef[1]
+                print('nx, ny: ' + str(nx) + ', ' + str(ny))
                 self.add_unexplored(nx, ny)            
                 self.add_connection(nx, ny)
 
         if '1' in self.measures.lineSensor[2:5]:
                 print('Forward')
                 coef = self.get_neightbor_coeficient('front')
-                nx = 2*round(x/2) + 2*coef[0]
-                ny = 2*round(y/2) + 2*coef[1]
+                nx = x
+                ny = y
+                if self.rotation == 0:
+                    nx += 0.432
+                elif self.rotation == -180:
+                    nx -= 0.432
+                if self.rotation == 90:
+                    ny += 0.432
+                elif self.rotation == -90:
+                    ny -= 0.432
+                nx = 2*round(nx/2) + 2*coef[0]
+                ny = 2*round(ny/2) + 2*coef[1]
+                print('nx, ny: ' + str(nx) + ', ' + str(ny))
                 # add connection on x,y at border cell
                 if (x == 2*round(x/2) and coef[0]) or (y == 2*round(y/2) and coef[1]):       
                     self.add_unexplored(nx, ny)                
                     self.add_connection(nx, ny)
-        
+
         print('coordinates:' + str(x) + ', ' + str(y))
         print('unexploredpaths:' + str(self.unexploredpaths))
+        print('linesensor: ' + str(self.measures.lineSensor))
 
         if self.has_path == 'path_finding':
             # path exists
@@ -274,93 +338,13 @@ class MyRob(CRobLinkAngs):
             else:
                 lpow, rpow = self.rotate()
             
-
             
-         
-            
-            print('rotation = ' + str(self.rotation))
-            print('PATH = ' + str(self.path))
             self.driveMotors(lpow, rpow)
            
-        else:
-            # if the agent makes a complete lap (for search testing purposes)
-            if [x,y] == [24, 9]:
-                self.driveMotors(0,0)
-                # go for unexplored paths
-                self.set_path(x, y)
-                self.set_destination_and_rotation(x, y)
-                print(f'{"PATH: "}{self.path}')
-                for cell in self.path:
-                    self.path_map[cell[1]][cell[0]] = 'P'
-                
-                self.save_map(self.path_map, "path.txt")
 
-                self.has_path = 'path_finding'
-
-            else:
-                # if there is a path both to the right and to the left
-                if self.measures.lineSensor.count('1') == 7:
-                    coef = self.get_neightbor_coeficient('left')
-                    nx = round(x) + 2*coef[0]
-                    ny = round(y) + 2*coef[1]
-                    self.add_connection(nx, ny)
-                    self.add_unexplored(nx, ny)
-                    coef = self.get_neightbor_coeficient('right')
-                    nx = round(x) + 2*coef[0]
-                    ny = round(y) + 2*coef[1]
-                    self.add_connection(nx, ny)
-                    self.add_unexplored(nx, ny)
-                # if there is a path to the left
-                elif self.measures.lineSensor[0] == '1':
-                    if self.measures.lineSensor.count('1') > 3:
-                        coef = self.get_neightbor_coeficient('left')
-                        nx = round(x) + 2*coef[0]
-                        ny = round(y) + 2*coef[1]
-                        self.add_connection(nx, ny)
-                        self.add_unexplored(nx, ny)
-
-                    print('Rotate left')
-                    self.driveMotors(-0.12,0.15)
-                
-                # if there is a path to the left
-                elif self.measures.lineSensor[6] == '1':
-                    if self.measures.lineSensor.count('1') > 3:
-                        coef = self.get_neightbor_coeficient('right')
-                        nx = round(x) + 2*coef[0]
-                        ny = round(y) + 2*coef[1]
-                        self.add_connection(nx, ny)
-                        self.add_unexplored(nx, ny)
-                    
-                    print('Rotate right')
-                    self.driveMotors(0.15,-0.12)
-
-                # if the agent is swinging left   
-                elif self.measures.lineSensor[1] == '1':
-                    print('Adjust left')
-                    self.driveMotors(0.08,0.15)
-
-                # if the agent is swinging right   
-                elif self.measures.lineSensor[5] == '1':
-                    print('Adjust right')
-                    self.driveMotors(0.15,0.08)
-
-                # if there is a path forward
-                elif '1' in self.measures.lineSensor[2:5]:
-                    print('Forward')
-                    self.driveMotors(0.15, 0.15)
-                    coef = self.get_neightbor_coeficient('front')
-                    nx = round(x) + 2*coef[0]
-                    ny = round(y) + 2*coef[1]
-                    # add connection on x,y at border cell
-                    if x == round(x) and coef[0] or y == round(y) and coef[1]:                        
-                        self.add_connection(nx, ny)
-                        self.add_unexplored(nx, ny)
-                
-                # if it is a dead end
-                elif self.measures.lineSensor.count('0') == 7:
-                    self.driveMotors(0,0)
-                    self.driveMotors(0.15,-0.15)
-
+        print('rotation = ' + str(self.rotation))
+        print('compass = ' + str(self.measures.compass))
+        print('PATH = ' + str(self.path))
         print('')
         self.save_map()
 
@@ -664,7 +648,9 @@ class MyRob(CRobLinkAngs):
                 pow = self.pid_Controller.go(y, self.dest[1])
             else:
                 pow = self.pid_Controller.go(self.dest[1], y)
-        return self.go(pow, 0.1, self.measures.compass/180, self.rotation/180)
+        return self.go(pow, 0.5, self.measures.compass/180, self.rotation/180)
+        #return self.go(pow, 0.1, self.measures.lineSensor[2:5].count('1'), 3)
+        #return self.go(pow, 0.1, 3, self.measures.lineSensor[2:5].count('1'))
 
     def rotate(self):
         print('ROTATE')
@@ -679,7 +665,7 @@ class MyRob(CRobLinkAngs):
         for point in self.unexploredpaths:
             if point != (x,y):
                 dist = math.dist((x,y), point)
-                if dist <= minimum:
+                if dist < minimum:
                     minimum = dist
                     target = point
         return [target[0], target[1]]
@@ -715,7 +701,8 @@ class MyRob(CRobLinkAngs):
             else:
                 calc = [0, -1]
         # left
-        elif -170 < self.measures.compass < -180 or 170 < self.measures.compass < 180:
+        elif -180 <= self.measures.compass < -170 or 170 < self.measures.compass <= 180:
+            print('CARALHOOOOOOOOOOOO')
             if direction == 'left':
                 calc = [0, -1]
             elif direction == 'front':
@@ -748,7 +735,8 @@ class MyRob(CRobLinkAngs):
             self.unexploredpaths.remove((nx, ny))       
 
     def add_unexplored(self, nx, ny):
-        self.unexploredpaths.add((nx, ny))
+        if (nx, ny) != (24, 10) and (nx, ny) not in self.exploredpath:
+            self.unexploredpaths.add((nx, ny))
 
     def write_known_path(self, x, y):
         x = round(x)
