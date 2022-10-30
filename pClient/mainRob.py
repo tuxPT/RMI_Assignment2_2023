@@ -1,5 +1,6 @@
 
 import sys
+import numpy
 from croblink import *
 from math import *
 import math
@@ -98,12 +99,12 @@ class MyRob(CRobLinkAngs):
             #print(len(self.map)*len(self.map[0]))
             self.map[10][24] = "I"
             #print(self.map)
-            self.unexploredpaths = []
+            self.unexploredpaths = set()
             self.connections = []
             self.neighborhood = []
             self.pathtoexplore = []
             self.exploredpath = []
-            self.has_path = 'random'
+            self.has_path = 'path_finding'
             self.rotation = None
             self.dest = None
             self.beacons = []
@@ -167,26 +168,6 @@ class MyRob(CRobLinkAngs):
             
 
     def wander(self):
-        """ center_id = 0
-        left_id = 1
-        right_id = 2
-        back_id = 3
-        if    self.measures.irSensor[center_id] > 5.0\
-           or self.measures.irSensor[left_id]   > 5.0\
-           or self.measures.irSensor[right_id]  > 5.0\
-           or self.measures.irSensor[back_id]   > 5.0:
-            print('Rotate left')
-            self.driveMotors(-0.1,+0.1)
-        elif self.measures.irSensor[left_id]> 2.7:
-            print('Rotate slowly right')
-            self.driveMotors(0.1,0.0)
-        elif self.measures.irSensor[right_id]> 2.7:
-            print('Rotate slowly left')
-            self.driveMotors(0.0,0.1)
-        else:
-            print('Go')
-            self.driveMotors(0.1,0.1) """
-
         if self.challenge == "1":
             self.wanderC1()
         elif self.challenge == "2":
@@ -203,18 +184,6 @@ class MyRob(CRobLinkAngs):
     def wanderC1(self):
 
         print(f'{"Line sensor: "}{self.measures.lineSensor}')
-
-        """ # Rotate left
-        if self.measures.lineSensor[0] == '1':
-            #self.driveMotors(-0.12,0.15)
-            self.driveMotors(-0.08,0.1)
-            self.track.append("left")
-
-        # Rotate right
-        elif self.measures.lineSensor[6] == '1':
-            #self.driveMotors(0.15,-0.12)
-            self.driveMotors(0.1,-0.08)
-            self.track.append("right")   """
         
         if self.measures.lineSensor[0] == '1':
             #pow = self.pid_Controller.go(3/7, self.measures.lineSensor.count("1")/7)
@@ -228,268 +197,98 @@ class MyRob(CRobLinkAngs):
             lpow, rpow = self.go(pow, 0.1, self.measures.lineSensor.count('1'), 3)
             self.driveMotors(lpow, rpow)
 
-
-        """ # Adjust left
-        elif self.measures.lineSensor[1] == '1':
-            #self.driveMotors(0.08,0.15)
-            self.driveMotors(0.08,0.1)
-
-        # Adjust right
-        elif self.measures.lineSensor[5] == '1':
-            #self.driveMotors(0.15,0.08)
-            self.driveMotors(0.1,0.08)
-
-        # Forward
-        elif '1' in self.measures.lineSensor[2:5]:
-            #self.driveMotors(0.15, 0.15)
-            self.driveMotors(0.1, 0.1)       """
-
-
-
     def wanderC2(self):
         
-        x,y = self.get_correct_measures()
+        x, y = self.get_correct_measures()
 
-        print(f'{"Pos: "}{x},{y}')
-        x = round(x)
-        y = round(y)
+        self.write_known_path(x, y)
 
-        print(f'{"Compass: "}{self.measures.compass}')
-        print(f'{"Line sensor: "}{self.measures.lineSensor}')
+        self.rem_unexplored(x, y)
 
-        # every odd line
-        if y % 2 == 1:
-            self.map[y][x] = "|"
-        # every odd column and even linedist
-        # every odd column and even line
-        elif x % 2 == 1:
-            self.map[y][x] = "-"
-        else:
-            pass
+        # if there is a path both to the right and to the left
+        if self.measures.lineSensor.count('1') == 7:
+            coef = self.get_neightbor_coeficient('left')
+            nx = 2*round(x/2) + 2*coef[0]
+            ny = 2*round(y/2) + 2*coef[1]
+            self.add_unexplored(nx, ny)                 
+            self.add_connection(nx, ny)
+            coef = self.get_neightbor_coeficient('right')
+            nx = 2*round(x/2) + 2*coef[0]
+            ny = 2*round(y/2) + 2*coef[1]
+            self.add_unexplored(nx, ny)              
+            self.add_connection(nx, ny)
+        # if there is a path to the left
+        elif self.measures.lineSensor[0] == '1':
+            if self.measures.lineSensor.count('1') > 3:
+                coef = self.get_neightbor_coeficient('left')
+                nx = 2*round(x/2) + 2*coef[0]
+                ny = 2*round(y/2) + 2*coef[1]
+                self.add_unexplored(nx, ny)                
+                self.add_connection(nx, ny)
+
+            print('Rotate left')
+        
+        # if there is a path to the left
+        elif self.measures.lineSensor[6] == '1':
+            if self.measures.lineSensor.count('1') > 3:
+                coef = self.get_neightbor_coeficient('right')
+                nx = 2*round(x/2) + 2*coef[0]
+                ny = 2*round(y/2) + 2*coef[1]
+                self.add_unexplored(nx, ny)            
+                self.add_connection(nx, ny)
+
+        if '1' in self.measures.lineSensor[2:5]:
+                print('Forward')
+                coef = self.get_neightbor_coeficient('front')
+                nx = 2*round(x/2) + 2*coef[0]
+                ny = 2*round(y/2) + 2*coef[1]
+                # add connection on x,y at border cell
+                if (x == 2*round(x/2) and coef[0]) or (y == 2*round(y/2) and coef[1]):       
+                    self.add_unexplored(nx, ny)                
+                    self.add_connection(nx, ny)
+        
+        print('coordinates:' + str(x) + ', ' + str(y))
+        print('unexploredpaths:' + str(self.unexploredpaths))
+
         if self.has_path == 'path_finding':
-            x,y = self.get_correct_measures()
-            #if abs(round(x) - x) < 0.05:
-              #  x = round(x)
-            #else:
-            
-            #if abs(round(y) - y) < 0.05:
-               # y = round(y)
-            #if:
-            
-            print('x, y = ' + str(x) + ', ' + str(y))
-            if [x, y] in self.unexploredpaths:
-                self.unexploredpaths.remove([x, y])
-            # path exists ?
+            # path exists
             if len(self.path):
                 print('HAS PATH')
+                # destination reached
                 if (self.dest[0] == 'x' and self.dest[1] == x) or (self.dest[0] == 'y' and self.dest[1] == y):
                     print('cell in path')
                     self.path = self.path[1:]
+                    # full path reached
                     if len(self.path) == 0:
-                        print('GET PATH')
-                        # go for unexplored paths
-                        unexploredcell = self.find_next(x, y)
-                        self.path = self.get_best_path([2*round(x/2),2*round(y/2)], unexploredcell)
-                        self.path_map = [[" " for j in range(1,50)] for i in range(1,22)]
-                        for cell in self.path:
-                            self.path_map[cell[1]][cell[0]] = 'P'
-                        self.save_map(self.path_map, "path.txt")
-                    horizontal = self.path[0][0] - round(x)
-                    vertical = self.path[0][1] - round(y)
-                    if horizontal:
-                        self.dest = ('x', self.path[0][0])
-                    elif vertical:
-                        self.dest = ('y', self.path[0][1])
-                    if horizontal > 0:
-                        self.rotation = 0
-                    elif horizontal < 0:
-                        self.rotation = -180
-                    elif vertical > 0:
-                        self.rotation = 90
-                    elif vertical < 0:
-                        self.rotation = -90
-            # get path
+                       self.set_path(x, y)
+                    self.set_destination_and_rotation(x, y)
+            # path does not exist
             else:
-                print('GET PATH')
-                # go for unexplored paths
-                unexploredcell = self.find_next(x, y)
-                self.path = self.get_best_path([2*round(x/2),2*round(y/2)], unexploredcell)
-                self.path_map = [[" " for j in range(1,50)] for i in range(1,22)]
-                for cell in self.path:
-                    self.path_map[cell[1]][cell[0]] = 'P'
-                self.save_map(self.path_map, "path.txt")
-                horizontal = self.path[0][0] - round(x)
-                vertical = self.path[0][1] - round(y)
-                if horizontal:
-                    self.dest = ('x', self.path[0][0])
-                elif vertical:
-                    self.dest = ('y', self.path[0][1])
-                if horizontal > 0:
-                    self.rotation = 0
-                elif horizontal < 0:
-                    self.rotation = -180
-                elif vertical > 0:
-                    self.rotation = 90
-                elif vertical < 0:
-                    self.rotation = -90
-           
-            
+                self.set_path(x, y)
+                self.set_destination_and_rotation(x, y)
                 
-            # foward
+            # forward
             if ((self.dest[0] == 'x' and self.dest[1] != x) or (self.dest[0] == 'y' and self.dest[1] != y)) and abs(self.rotation-self.measures.compass) <= 1:
-                #self.rotation = None
-                # if there is a path both to the right and to the left
-                
-
-                """
-                print('FOWARD')
-                # if the agent is swinging left   
-                if self.measures.lineSensor[1] == '1':
-                    print('Adjust left')
-                    self.driveMotors(0.01,0.05)
-
-                # if the agent is swinging right   
-                elif self.measures.lineSensor[5] == '1':
-                    print('Adjust right')
-                    self.driveMotors(0.05,0.01) """
-
-                # if there is a path forward
-                #if '1' in self.measures.lineSensor[2:5]:
-                print('Forward')
-                if self.dest[0] == 'x':
-                    if self.rotation == -180:
-                        pow = self.pid_Controller.go(x, self.dest[1])
-                    else:
-                        pow = self.pid_Controller.go(self.dest[1], x)
-                elif self.dest[0] == 'y':
-                    if self.rotation == -90:
-                        pow = self.pid_Controller.go(y, self.dest[1])
-                    else:
-                        pow = self.pid_Controller.go(self.dest[1], y)
-                lpow, rpow = self.go(pow, 0.1, self.measures.compass/180, self.rotation/180)
-                self.driveMotors(lpow, rpow)
-                #self.unknown_pos(x, y, 'front')
-                
-                # if it is a dead end
-                #elif self.measures.lineSensor.count('0') == 7:
-                #    #self.driveMotors(0,0)
-                #    self.driveMotors(0.05,-0.05)
+                lpow, rpow = self.forward(x, y)
             # rotate
             else:
-                print('ROTATE')
-                #pow = self.pid_Controller.go(self.rotation/180, self.measures.compass/180, True)
-                pow = self.pid_Controller.go(self.rotation/180, self.measures.compass/180, True)
-                self.driveMotors(-pow, pow)
+                lpow, rpow = self.rotate()
             
 
-            x = round(x)
-            y = round(y)
-            if self.measures.lineSensor.count('1') == 7:
-                    self.unknown_pos(x, y, 'left')
-                    self.unknown_pos(x, y, 'right')
-
-            # if there is a path to the left
-            elif self.measures.lineSensor[0] == '1':
-                if self.measures.lineSensor.count('1') > 3:
-                    self.unknown_pos(x, y, 'left')
             
-            # if there is a path to the left
-            elif self.measures.lineSensor[6] == '1':
-                if self.measures.lineSensor.count('1') > 3:
-                    self.unknown_pos(x, y, 'right')
-            #if '1' in self.measures.lineSensor[2:5]:
-            #    self.unknown_pos(x, y, 'front')
+         
             
             print('rotation = ' + str(self.rotation))
             print('PATH = ' + str(self.path))
-            #print('pow = ' + str(pow))
-            #print('lpow, rpow = ' + str(lpow) + ', ' + str(rpow))
-            #print('curr = ' + str(curr) + ', dest = ' + str(self.dest[1]) + ', dest_dir = ' + str(self.dest[0]))
-
-
-            """ if self.dest_cell == None:
-                print('DEST_CELL==None')
-                self.dest_cell = self.path[0]
-                print('DEST_CELL = ' + str(self.dest_cell))
-                self.path = self.path[1:]
-            if self.rotation and abs(self.rotation - self.measures.compass) > 10:
-                print('ROTATE')
-                lpow, rpow = self.go(0.0, 0.1, self.rotation, self.measures.compass)
-                self.driveMotors(-lpow, -rpow)
-            elif [x, y] == self.dest_cell:
-                print('DEST_CELL==[x,y]')
-                if len(self.path):
-                    self.dest_cell = self.path[0]
-                    print('DEST_CELL = ' + str(self.dest_cell))
-                    self.path = self.path[1:]
-                else:
-                    # go for unexplored paths
-                    unexploredcell = self.find_next(x, y)
-                    self.path = self.get_best_path([2*round(x/2),2*round(y/2)], unexploredcell)
-                    self.path_map = [[" " for j in range(1,50)] for i in range(1,22)]
-                    for cell in self.path:
-                        self.path_map[cell[1]][cell[0]] = 'P'
-                    self.save_map(self.path_map, "path.txt")
-                horizontal = self.dest_cell[0] - x
-                vertical = self.dest_cell[1] - y
-                if horizontal > 0:
-                    self.rotation = 0
-                elif horizontal < 0:
-                    self.rotation = -180
-                elif vertical > 0:
-                    self.rotation = 90
-                elif vertical < 0:
-                    self.rotation = -90
-                else:
-                    print('ACABOU')
-                print('rotation' + str(self.rotation))
-            else:
-                print('ELSE FORWARD')
-                self.rotation = None
-                # if the agent is swinging left   
-                if self.measures.lineSensor[1] == '1':
-                    print('Adjust left')
-                    self.driveMotors(0.08,0.15)
-
-                # if the agent is swinging right   
-                elif self.measures.lineSensor[5] == '1':
-                    print('Adjust right')
-                    self.driveMotors(0.15,0.08)
-
-                # if there is a path forward
-                elif '1' in self.measures.lineSensor[2:5]:
-                    print('Forward')
-                    self.driveMotors(0.15, 0.15)
-                    self.unknown_pos(x, y, 'front')
-                
-                # if it is a dead end
-                elif self.measures.lineSensor.count('0') == 7:
-                    self.driveMotors(0,0)
-                    self.driveMotors(0.15,-0.15)
-            print('PATH = ' + str(self.path)) """
-                
+            self.driveMotors(lpow, rpow)
+           
         else:
             # if the agent makes a complete lap (for search testing purposes)
             if [x,y] == [24, 9]:
                 self.driveMotors(0,0)
                 # go for unexplored paths
-                unexploredcell = self.find_next(x, y)
-                print(f'{"UNEXPLROED: "}{unexploredcell}')
-                self.path = self.get_best_path([2*round(x/2), 2*round(y/2)], unexploredcell)
-                horizontal = self.path[0][0] - round(x)
-                vertical = self.path[0][1] - round(y)
-                if horizontal:
-                    self.dest = ('x', self.path[0][0])
-                elif vertical:
-                    self.dest = ('y', self.path[0][1])
-                if horizontal > 0:
-                    self.rotation = 0
-                elif horizontal < 0:
-                    self.rotation = -180
-                elif vertical > 0:
-                    self.rotation = 90
-                elif vertical < 0:
-                    self.rotation = -90
+                self.set_path(x, y)
+                self.set_destination_and_rotation(x, y)
                 print(f'{"PATH: "}{self.path}')
                 for cell in self.path:
                     self.path_map[cell[1]][cell[0]] = 'P'
@@ -501,13 +300,24 @@ class MyRob(CRobLinkAngs):
             else:
                 # if there is a path both to the right and to the left
                 if self.measures.lineSensor.count('1') == 7:
-                    self.unknown_pos(x, y, 'left')
-                    self.unknown_pos(x, y, 'right')
-
+                    coef = self.get_neightbor_coeficient('left')
+                    nx = round(x) + 2*coef[0]
+                    ny = round(y) + 2*coef[1]
+                    self.add_connection(nx, ny)
+                    self.add_unexplored(nx, ny)
+                    coef = self.get_neightbor_coeficient('right')
+                    nx = round(x) + 2*coef[0]
+                    ny = round(y) + 2*coef[1]
+                    self.add_connection(nx, ny)
+                    self.add_unexplored(nx, ny)
                 # if there is a path to the left
-                if self.measures.lineSensor[0] == '1':
+                elif self.measures.lineSensor[0] == '1':
                     if self.measures.lineSensor.count('1') > 3:
-                        self.unknown_pos(x, y, 'left')
+                        coef = self.get_neightbor_coeficient('left')
+                        nx = round(x) + 2*coef[0]
+                        ny = round(y) + 2*coef[1]
+                        self.add_connection(nx, ny)
+                        self.add_unexplored(nx, ny)
 
                     print('Rotate left')
                     self.driveMotors(-0.12,0.15)
@@ -515,7 +325,11 @@ class MyRob(CRobLinkAngs):
                 # if there is a path to the left
                 elif self.measures.lineSensor[6] == '1':
                     if self.measures.lineSensor.count('1') > 3:
-                        self.unknown_pos(x, y, 'right')
+                        coef = self.get_neightbor_coeficient('right')
+                        nx = round(x) + 2*coef[0]
+                        ny = round(y) + 2*coef[1]
+                        self.add_connection(nx, ny)
+                        self.add_unexplored(nx, ny)
                     
                     print('Rotate right')
                     self.driveMotors(0.15,-0.12)
@@ -534,13 +348,20 @@ class MyRob(CRobLinkAngs):
                 elif '1' in self.measures.lineSensor[2:5]:
                     print('Forward')
                     self.driveMotors(0.15, 0.15)
-                    self.unknown_pos(x, y, 'front')
+                    coef = self.get_neightbor_coeficient('front')
+                    nx = round(x) + 2*coef[0]
+                    ny = round(y) + 2*coef[1]
+                    # add connection on x,y at border cell
+                    if x == round(x) and coef[0] or y == round(y) and coef[1]:                        
+                        self.add_connection(nx, ny)
+                        self.add_unexplored(nx, ny)
                 
                 # if it is a dead end
                 elif self.measures.lineSensor.count('0') == 7:
                     self.driveMotors(0,0)
                     self.driveMotors(0.15,-0.15)
 
+        print('')
         self.save_map()
 
     def wanderC3(self):
@@ -830,24 +651,42 @@ class MyRob(CRobLinkAngs):
                     self.driveMotors(0,0)
                     self.driveMotors(0.15,-0.15)
 
+    def forward(self, x, y):
+        print('FORWARD')
+        pow = 0
+        if self.dest[0] == 'x':
+            if self.rotation == -180:
+                pow = self.pid_Controller.go(x, self.dest[1])
+            else:
+                pow = self.pid_Controller.go(self.dest[1], x)
+        elif self.dest[0] == 'y':
+            if self.rotation == -90:
+                pow = self.pid_Controller.go(y, self.dest[1])
+            else:
+                pow = self.pid_Controller.go(self.dest[1], y)
+        return self.go(pow, 0.1, self.measures.compass/180, self.rotation/180)
+
+    def rotate(self):
+        print('ROTATE')
+        pow = self.pid_Controller.go(self.rotation/180, self.measures.compass/180, True)
+        return -pow, pow
+
     # returns the closest non explored point to the current position
     def find_next(self, x, y):
         # pesquisa no mapa em vez da lista
-        # unexplored = [(row.index('?'), index) for index, row in enumerate(reversed(self.map)) if '?' in row]
-        # min(unexplored, key=lambda spot: math.dist(spot, (x, y)))
-        minimum = 100000
-        target = []
-        for point in self.unexploredpaths: 
-            if point != [x,y]:
-                dist = math.dist([x,y], point)
-                if dist < minimum:
+        minimum = math.inf
+        target = None
+        for point in self.unexploredpaths:
+            if point != (x,y):
+                dist = math.dist((x,y), point)
+                if dist <= minimum:
                     minimum = dist
                     target = point
-
-        return target
+        return [target[0], target[1]]
 
     # based on tree_search module and list of connections, returns the best path from origin to destination
     def get_best_path(self, origin, destination):
+        origin = [2*round(origin[0]/2), 2*round(origin[1]/2)]
         self.pathtoexplore = []
         print("connections: " + str(sorted(self.connections)))
         print("origin: " + str(origin))
@@ -857,9 +696,8 @@ class MyRob(CRobLinkAngs):
 
         return self.pathtoexplore
 
-    def unknown_pos(self, x, y, direction):
+    def get_neightbor_coeficient(self, direction):
         calc = [0, 0]
-        self.neighborhood = []
         # up
         if 80 < self.measures.compass < 100:
             if direction == 'left':
@@ -893,35 +731,67 @@ class MyRob(CRobLinkAngs):
             else:
                 calc = [-1, 0]
 
+        return calc
 
-        # calculate neighbor cells and add them to a list of connections between cells
-        # add the current cell to a list of explored cells
-        current_cell = [x, y] 
-        nx = x + (calc[0]*2)
-        ny = y + (calc[1]*2)
-        
-        if [nx, ny] != current_cell  and current_cell[0]%2==0 and current_cell[1]%2==0:
-            self.neighborhood.append([nx, ny])
-            if current_cell not in self.exploredpath:
-                self.exploredpath.append(current_cell)
-            if ([nx, ny] not in self.unexploredpaths) and ([nx, ny] not in self.exploredpath):
-                self.unexploredpaths.append([nx, ny])
+    def add_connection(self, nx, ny):
+        x, y = self.get_correct_measures()
+        x = 2*round(x/2)
+        y = 2*round(y/2)
+        if [[x, y], [nx, ny]] not in self.connections:
+            self.connections.append([[x, y], [nx, ny]])
+        numpy.savez("connections.npz", connections=numpy.array(self.connections))
 
-        if current_cell in self.unexploredpaths:
-            self.unexploredpaths.remove(current_cell)
-        
-        #print(f'{"Neighbor: "}{self.neighborhood}')
-        #print(f'{"Unexplored paths: "}{self.unexploredpaths}')
-        #print(f'{"Explored paths: "}{self.exploredpaths}')
+    def rem_unexplored(self, x, y):
+        nx = round(x)
+        ny = round(y)
+        if (nx, ny) in self.unexploredpaths:
+            self.unexploredpaths.remove((nx, ny))       
 
-        self.connections += [[current_cell, neighbor_cell] for neighbor_cell in self.neighborhood
-            if [current_cell, neighbor_cell] not in self.connections 
-            and [neighbor_cell, current_cell] not in self.connections] 
-        
-        #print(f'{"Connections list: "}{self.connections}')
+    def add_unexplored(self, nx, ny):
+        self.unexploredpaths.add((nx, ny))
 
-        x+= calc[0]
-        y+= calc[1]
+    def write_known_path(self, x, y):
+        x = round(x)
+        y = round(y)
+        # every odd line
+        if y % 2 == 1:
+            self.map[y][x] = "|"
+        # every odd column and even linedist
+        # every odd column and even line
+        elif x % 2 == 1:
+            self.map[y][x] = "-"
+        else:
+            pass
+
+    def set_path(self, x, y):
+        print('GET PATH')
+        # go for unexplored paths
+        unexploredcell = self.find_next(x, y)
+        self.path = self.get_best_path([x, y], unexploredcell)
+        self.path_map = [[" " for j in range(1,50)] for i in range(1,22)]
+        for cell in self.path:
+            self.path_map[cell[1]][cell[0]] = 'P'
+        self.save_map(self.path_map, "path.txt")
+    
+    def set_destination_and_rotation(self, x, y):
+        horizontal = self.path[0][0] - round(x)
+        vertical = self.path[0][1] - round(y)
+        if horizontal:
+            self.dest = ('x', self.path[0][0])
+        elif vertical:
+            self.dest = ('y', self.path[0][1])
+        if horizontal > 0:
+            self.rotation = 0
+        elif horizontal < 0:
+            self.rotation = -180
+        elif vertical > 0:
+            self.rotation = 90
+        elif vertical < 0:
+            self.rotation = -90
+
+    def write_unknown_path(self, x, y):
+        x = round(x)
+        y = round(y)
         
         if self.map[y][x] not in ['-', '|', 'I'] and calc != [0, 0]:
             if y % 2 == 1 and x % 2 == 0:
