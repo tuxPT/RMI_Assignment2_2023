@@ -87,9 +87,10 @@ class Domain(SearchDomain):
 class MyRob(CRobLinkAngs):
     def __init__(self, rob_name, rob_id, angles, host, challenge, outfile):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
+        self.rob_name = rob_name
         self.challenge = challenge
         self.outfile = outfile
-        self.pid_Controller = PIDController(0.07, 1000, 0.000001, 0.025, 0.3, math.inf, 0.000001)
+        self.pid_Controller = PIDController(0.07, 1000, 0.000001, 0.050, 0.5, math.inf, 0.000001)
         if self.challenge == "1":
             self.track = []
         if self.challenge == "2" or self.challenge == "3":
@@ -201,7 +202,6 @@ class MyRob(CRobLinkAngs):
         
         x, y = self.get_correct_measures()
 
-        self.write_known_path(x, y)
 
         self.exploredpath.add((2*round(x/2), 2*round(y/2)))
         self.rem_unexplored(x, y)
@@ -264,8 +264,8 @@ class MyRob(CRobLinkAngs):
                 self.add_unexplored(nx, ny)            
                 self.add_connection(nx, ny)
 
-            print('Rotate left')
-        
+                print('Rotate left')
+            
         # if there is a path to the left
         elif self.measures.lineSensor[6] == '1':
             if self.measures.lineSensor.count('1') > 3:
@@ -314,6 +314,8 @@ class MyRob(CRobLinkAngs):
         print('unexploredpaths:' + str(self.unexploredpaths))
         print('linesensor: ' + str(self.measures.lineSensor))
 
+        
+
         if self.has_path == 'path_finding':
             # path exists
             if len(self.path):
@@ -332,7 +334,7 @@ class MyRob(CRobLinkAngs):
                 self.set_destination_and_rotation(x, y)
                 
             # forward
-            if ((self.dest[0] == 'x' and self.dest[1] != x) or (self.dest[0] == 'y' and self.dest[1] != y)) and abs(self.rotation-self.measures.compass) <= 1:
+            if ((self.dest[0] == 'x' and self.dest[1] != x) or (self.dest[0] == 'y' and self.dest[1] != y)) and abs(self.rotation-self.measures.compass) <= 2:
                 lpow, rpow = self.forward(x, y)
             # rotate
             else:
@@ -341,6 +343,8 @@ class MyRob(CRobLinkAngs):
             
             self.driveMotors(lpow, rpow)
            
+        if len(self.unexploredpaths) == 0 and len(self.path) == 0:
+            self.finish()
 
         print('rotation = ' + str(self.rotation))
         print('compass = ' + str(self.measures.compass))
@@ -648,13 +652,23 @@ class MyRob(CRobLinkAngs):
                 pow = self.pid_Controller.go(y, self.dest[1])
             else:
                 pow = self.pid_Controller.go(self.dest[1], y)
-        return self.go(pow, 0.5, self.measures.compass/180, self.rotation/180)
-        #return self.go(pow, 0.1, self.measures.lineSensor[2:5].count('1'), 3)
-        #return self.go(pow, 0.1, 3, self.measures.lineSensor[2:5].count('1'))
+        return self.go(pow, 0.3, self.measures.compass/180, self.rotation/180)
+        
 
     def rotate(self):
         print('ROTATE')
-        pow = self.pid_Controller.go(self.rotation/180, self.measures.compass/180, True)
+        compass = self.measures.compass + 180
+        rotation = self.rotation + 180
+            
+        difference = abs(rotation - compass)
+        difference2 = abs(360 - rotation - compass)
+       
+        if difference <= difference2:
+            pow = self.pid_Controller.go((self.rotation+180)/360, (self.measures.compass+180)/360, True)
+        else:
+            pow = self.pid_Controller.go((self.measures.compass+180)/360, (self.rotation+180)/360, True)
+
+        
         return -pow, pow
 
     # returns the closest non explored point to the current position
@@ -664,7 +678,7 @@ class MyRob(CRobLinkAngs):
         target = None
         for point in self.unexploredpaths:
             if point != (x,y):
-                dist = math.dist((x,y), point)
+                dist = abs(x-point[0]) + abs(y-point[1])
                 if dist < minimum:
                     minimum = dist
                     target = point
@@ -726,6 +740,8 @@ class MyRob(CRobLinkAngs):
         y = 2*round(y/2)
         if [[x, y], [nx, ny]] not in self.connections:
             self.connections.append([[x, y], [nx, ny]])
+            self.write_known_path(x, y, nx, ny)
+
         numpy.savez("connections.npz", connections=numpy.array(self.connections))
 
     def rem_unexplored(self, x, y):
@@ -738,9 +754,13 @@ class MyRob(CRobLinkAngs):
         if (nx, ny) != (24, 10) and (nx, ny) not in self.exploredpath:
             self.unexploredpaths.add((nx, ny))
 
-    def write_known_path(self, x, y):
-        x = round(x)
-        y = round(y)
+    def write_known_path(self, ix, iy, fx, fy):
+        x = int((ix+fx)/2)
+        y = int((iy+fy)/2)
+
+        print('known x: '+ str(x))
+        print('known y: '+ str(y))
+
         # every odd line
         if y % 2 == 1:
             self.map[y][x] = "|"
@@ -754,6 +774,8 @@ class MyRob(CRobLinkAngs):
     def set_path(self, x, y):
         print('GET PATH')
         # go for unexplored paths
+        x = round(x)
+        y = round(y)
         unexploredcell = self.find_next(x, y)
         self.path = self.get_best_path([x, y], unexploredcell)
         self.path_map = [[" " for j in range(1,50)] for i in range(1,22)]
