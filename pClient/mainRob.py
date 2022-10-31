@@ -90,7 +90,7 @@ class MyRob(CRobLinkAngs):
         self.rob_name = rob_name
         self.challenge = challenge
         self.outfile = outfile
-        self.pid_Controller = PIDController(0.07, 1000, 0.000001, 0.050, 0.5, math.inf, 0.000001)
+        self.pid_Controller = PIDController(0.07, 1000, 0.000001, 0.020, 0.5, math.inf, 0.000001)
         if self.challenge == "1":
             self.track = []
         if self.challenge == "2" or self.challenge == "3":
@@ -183,16 +183,16 @@ class MyRob(CRobLinkAngs):
 
         print(f'{"Line sensor: "}{self.measures.lineSensor}')
         
-        if self.measures.lineSensor[0] == '1':
+        if self.measures.lineSensor[0:2].count('1') > 0:
             #pow = self.pid_Controller.go(3/7, self.measures.lineSensor.count("1")/7)
             self.driveMotors(-0.12, 0.15)
 
-        elif self.measures.lineSensor[6] == '1':
+        if self.measures.lineSensor[5:7].count('1') > 0:
             #pow = self.pid_Controller.go(3/7, self.measures.lineSensor.count("1")/7)
             self.driveMotors(0.15, -0.12)
         else:
-            pow = 0.15 - self.pid_Controller.go(3/7, self.measures.lineSensor.count("1")/7)
-            lpow, rpow = self.go(pow, 0.1, self.measures.lineSensor.count('1'), 3)
+            pow = 0.15
+            lpow, rpow = self.go(pow, 3, self.measures.lineSensor[0:2].count('0')/7, self.measures.lineSensor[5:7].count('0')/7)
             self.driveMotors(lpow, rpow)
 
     def wanderC2(self):
@@ -321,6 +321,14 @@ class MyRob(CRobLinkAngs):
                 if (self.dest[0] == 'x' and self.dest[1] == x) or (self.dest[0] == 'y' and self.dest[1] == y):
                     print('cell in path')
                     self.path = self.path[1:]
+                    print('PATH = ' + str(self.path))
+                    print('unexplored_paths = ' + str(self.unexploredpaths))
+                    print('beacons = ' +  str(self.beacons))
+                    if len(self.path) == 0 and len(self.unexploredpaths) == 0:
+                        print('finish')
+                        self.has_path = 'stop'
+                        self.finish()
+                        return
                     # full path reached
                     if len(self.path) == 0:
                        self.set_path(x, y)
@@ -485,6 +493,15 @@ class MyRob(CRobLinkAngs):
                     if (self.dest[0] == 'x' and self.dest[1] == x) or (self.dest[0] == 'y' and self.dest[1] == y):
                         #print('cell in path')
                         self.path = self.path[1:]
+                        print('PATH = ' + str(self.path))
+                        print('unexplored_paths = ' + str(self.unexploredpaths))
+                        print('beacons = ' +  str(self.beacons))
+                        if len(self.path) == 0 and len(self.unexploredpaths) == 0 and len(self.beacons) == int(self.nBeacons):
+                            print('finish')
+                            self.has_path = 'stop'
+                            self.beacons_path()
+                            self.finish()
+                            return
                         # full path reached
                         if len(self.path) == 0:
                             self.set_path(x, y)
@@ -500,16 +517,16 @@ class MyRob(CRobLinkAngs):
                 # rotate
                 else:
                     lpow, rpow = self.rotate()
-                   
-                self.driveMotors(lpow, rpow)
+            else:
+                lpow, rpow = 0, 0
             
-            if len(self.beacons) == 3:
-                self.beacons_path()
-                self.finish()
+            
+            self.driveMotors(lpow, rpow)
+            
+            
 
             #print('rotation = ' + str(self.rotation))
             #print('compass = ' + str(self.measures.compass))
-            #print('PATH = ' + str(self.path))
             #self.save_path()
 
     def forward(self, x, y):
@@ -702,7 +719,7 @@ class MyRob(CRobLinkAngs):
             fout=self.outfile
         s = ""
         for point in path:
-            s += str(point[0]) + ' ' + str(point[1])
+            s += str(point[0]-24) + ' ' + str(point[1]-10)
             s += "\n"
 
         with open(fout, "w+") as f:
