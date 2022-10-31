@@ -90,7 +90,7 @@ class MyRob(CRobLinkAngs):
         self.rob_name = rob_name
         self.challenge = challenge
         self.outfile = outfile
-        self.pid_Controller = PIDController(0.07, 1000, 0.000001, 0.020, 0.5, math.inf, 0.000001)
+        self.pid_Controller = PIDController(0.07, 1000, 0.000001, 0.050, 0.5, math.inf, 0.000001)
         if self.challenge == "1":
             self.track = []
         if self.challenge == "2" or self.challenge == "3":
@@ -179,21 +179,9 @@ class MyRob(CRobLinkAngs):
         rpow = lin - (rot/2)
         return [lpow, rpow]
 
-    def wanderC1(self):
-
-        print(f'{"Line sensor: "}{self.measures.lineSensor}')
-        
-        if self.measures.lineSensor[0:2].count('1') > 0:
-            #pow = self.pid_Controller.go(3/7, self.measures.lineSensor.count("1")/7)
-            self.driveMotors(-0.12, 0.15)
-
-        if self.measures.lineSensor[5:7].count('1') > 0:
-            #pow = self.pid_Controller.go(3/7, self.measures.lineSensor.count("1")/7)
-            self.driveMotors(0.15, -0.12)
-        else:
-            pow = 0.15
-            lpow, rpow = self.go(pow, 3, self.measures.lineSensor[0:2].count('0')/7, self.measures.lineSensor[5:7].count('0')/7)
-            self.driveMotors(lpow, rpow)
+    def wanderC1(self):        
+        lpow, rpow = self.go(0.15, 2, self.measures.lineSensor[0:3].count('0')/7, self.measures.lineSensor[4:7].count('0')/7)
+        self.driveMotors(lpow, rpow)
 
     def wanderC2(self):
         
