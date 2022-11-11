@@ -179,12 +179,43 @@ class MyRob(CRobLinkAngs):
         rpow = lin - (rot/2)
         return [lpow, rpow]
 
+
+    def detect_and_correct_error(self):
+        array = self.measures.lineSensor
+        count = 0
+        index = None
+        if self.measures.lineSensor.count('0') == 7:
+            print(f'OUT')
+        for i in range(0, 7):
+            for j in range(i+1, 7):
+                if array[i] == '1' and array[j] == '1' and array[i:j+1].count('0'):
+                    if index == None:
+                        print(f'DETECTED: {array}')
+                        index = array.index('0', i, j)
+                    if count < array[i:j+1].count('0'):
+                        count = array[i:j+1].count('0')
+        if index:
+            print(f'index: {index}')
+            print(f'count: {count}')
+            if index == 3 and count == 1:
+                array[3] = '1'
+            elif array[6] == '1' and count < 3:
+                array = ['0']*count + array[0:index] + array[index+count:7]
+            elif array[0] == '1' and count < 3:
+                array = array[0:index] + array[index+count:7] + ['0']*count
+            elif array[0:index].count('1') > array[index+1:7].count('1'):
+                array = array[0:index] + array[index+count:7] + ['0']*count
+            else:
+                array = ['0']*count + array[0:index] + array[index+count:7]
+
+            print(f'Corrected: {array}')
+        return array
+
     def wanderC1(self):        
         lpow, rpow = self.go(0.15, 2, self.measures.lineSensor[0:3].count('0')/7, self.measures.lineSensor[4:7].count('0')/7)
         self.driveMotors(lpow, rpow)
 
     def wanderC2(self):
-        
         x, y = self.get_correct_measures()
 
 
