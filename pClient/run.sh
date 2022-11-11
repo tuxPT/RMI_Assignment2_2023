@@ -45,5 +45,9 @@ case $challenge in
         # how to call agent for challenge 3
         python3 mainRob.py -c 3 -h "$host" -p "$pos" -r "$robname" -f "$outfile.path"
         ;;
+    4)
+        # how to call agent for challenge 4
+        python3 mainRob.py -c 4 -h "$host" -p "$pos" -r "$robname" -f "$outfile"
+        ;;
 esac
 
