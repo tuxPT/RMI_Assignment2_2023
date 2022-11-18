@@ -6,6 +6,7 @@ from math import *
 import math
 import xml.etree.ElementTree as ET
 from tree_search import *
+from collections import deque
 
 CELLROWS=7
 CELLCOLS=14
@@ -109,6 +110,7 @@ class MyRob(CRobLinkAngs):
             self.rotation = 0
             self.dest = None
             self.beacons = []
+        self.linesensor_buffer = deque()
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
     # to know if there is a wall on top of cell(i,j) (i in 0..5), check if the value of labMap[i*2+1][j*2] is space or not
@@ -199,11 +201,11 @@ class MyRob(CRobLinkAngs):
         if index:
             print(f'index: {index}')
             print(f'count: {count}')
-            if index == 3 and count == 1:
-                array[3] = '1'
-            elif array[6] == '1' and count < 3:
+            #if count == 1:
+            #    array[index] = '1'
+            if array[6] == '1' and count < 2 and index > 3:
                 array = ['0']*count + array[0:index] + array[index+count:7]
-            elif array[0] == '1' and count < 3:
+            elif array[0] == '1' and count < 2 and index < 3:
                 array = array[0:index] + array[index+count:7] + ['0']*count
             elif array[0:index].count('1') > array[index+1:7].count('1'):
                 array = array[0:index] + array[index+count:7] + ['0']*count
@@ -213,8 +215,32 @@ class MyRob(CRobLinkAngs):
             print(f'Corrected: {array}')
         return array
 
+    def weighted_average(self):
+        if self.measures.lineSensor.count('0') == 7:
+            print(f'OUT')
+        last_value = [0 if i == '0' else 1 for i in self.measures.lineSensor]
+        print(f'last_value:       {last_value}')
+        if last_value.count(1) > 2:
+            self.linesensor_buffer.append(last_value)
+            if len(self.linesensor_buffer) > 3:
+                self.linesensor_buffer.popleft()
+        print(f'deque:            {self.linesensor_buffer}')
+        s = [0]*7
+        for i in range(0, len(self.linesensor_buffer)):
+            for j in range(0, 7):
+                s[j] += self.linesensor_buffer[i][j]*(i+1)/6
+
+        print(f'Weighted average: {s}')
+        for i in range(0, 7):
+            s[i] = round(s[i]+0.00001)
+
+        print(f'Weighted average: {s}')
+        return s
+
+
     def wanderC1(self):        
-        lpow, rpow = self.go(0.15, 2, self.measures.lineSensor[0:3].count('0')/7, self.measures.lineSensor[4:7].count('0')/7)
+        linSensor = self.weighted_average()
+        lpow, rpow = self.go(0.15, 2, linSensor[0:3].count(0)/7, linSensor[4:7].count(0)/7)
         self.driveMotors(lpow, rpow)
 
     def wanderC2(self):
@@ -496,7 +522,10 @@ class MyRob(CRobLinkAngs):
             #self.save_path()
 
     def wanderC4(self):
+        self.detect_and_correct_error()
         x,y = self.get_correct_measures()
+
+        print(f'x: {x}, y: {y}')
 
         x = round(x)
         y = round(y)
