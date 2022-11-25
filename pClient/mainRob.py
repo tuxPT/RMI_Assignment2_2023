@@ -110,7 +110,11 @@ class MyRob(CRobLinkAngs):
             self.rotation = 0
             self.dest = None
             self.beacons = []
+            self.lin = 0
+            self.prev_pos = (24, 10)
+            self.prev_angle = 0
         self.linesensor_buffer = deque()
+        self.compass_buffer = deque()
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
     # to know if there is a wall on top of cell(i,j) (i in 0..5), check if the value of labMap[i*2+1][j*2] is space or not
@@ -233,6 +237,20 @@ class MyRob(CRobLinkAngs):
         print(f'Weighted average: {s}')
         for i in range(0, 7):
             s[i] = round(s[i]+0.00001)
+
+        print(f'Weighted average: {s}')
+        return s
+
+    def get_correct_compass(self):
+        last_value = self.measures.compass
+        print(f'last_value:       {last_value}')
+        self.compass_buffer.append(last_value)
+        if len(self.compass_buffer) > 3:
+            self.compass_buffer.popleft()
+        print(f'deque:            {self.compass_buffer}')
+        s = 0
+        for i in range(0, len(self.compass_buffer)):
+            s += self.compass_buffer[i]*(i+1)/6
 
         print(f'Weighted average: {s}')
         return s
@@ -522,28 +540,26 @@ class MyRob(CRobLinkAngs):
             #self.save_path()
 
     def wanderC4(self):
-        self.detect_and_correct_error()
+        #self.detect_and_correct_error()
         x,y = self.get_correct_measures()
-
+        compass = self.get_correct_compass()
         print(f'x: {x}, y: {y}')
 
-        x = round(x)
-        y = round(y)
+        xn = round(x)
+        yn = round(y)
 
         if self.measures.ground != -1:
             if [x, y] not in self.beacons:
-                self.beacons.append([2*round(x/2), 2*round(y/2)])
-                self.map[y][x] = str(self.measures.ground)
+                self.beacons.append([xn, yn])
+                self.map[2*round(yn/2)][2*round(xn/2)] = str(self.measures.ground)
 
         if self.has_path == 'path_finding':
-            x, y = self.get_correct_measures()
-
             self.exploredpath.add((2*round(x/2), 2*round(y/2)))
             self.rem_unexplored(x, y)
 
             # if there is a path both to the right and to the left
             if self.measures.lineSensor.count('1') == 7:
-                coef = self.get_neightbor_coeficient('left')
+                coef = self.get_neightbor_coeficient('left', compass)
                 nx = x
                 ny = y
                 if self.rotation == 0:
@@ -557,8 +573,8 @@ class MyRob(CRobLinkAngs):
                 nx = 2*round(nx/2) + 2*coef[0]
                 ny = 2*round(ny/2) + 2*coef[1]
                 self.add_unexplored(nx, ny)                 
-                self.add_connection(nx, ny)
-                coef = self.get_neightbor_coeficient('right')
+                self.add_connection(nx, ny, x, y)
+                coef = self.get_neightbor_coeficient('right', compass)
                 nx = x
                 ny = y
                 if self.rotation == 0:
@@ -572,12 +588,12 @@ class MyRob(CRobLinkAngs):
                 nx = 2*round(nx/2) + 2*coef[0]
                 ny = 2*round(ny/2) + 2*coef[1]
                 self.add_unexplored(nx, ny)              
-                self.add_connection(nx, ny)
+                self.add_connection(nx, ny, x, y)
 
             # if there is a path to the left
             elif self.measures.lineSensor[0] == '1':
                 if self.measures.lineSensor.count('1') > 3:
-                    coef = self.get_neightbor_coeficient('left')
+                    coef = self.get_neightbor_coeficient('left', compass)
                     nx = x
                     ny = y
                     if self.rotation == 0:
@@ -591,12 +607,12 @@ class MyRob(CRobLinkAngs):
                     nx = 2*round(nx/2) + 2*coef[0]
                     ny = 2*round(ny/2) + 2*coef[1]
                     self.add_unexplored(nx, ny)            
-                    self.add_connection(nx, ny)
+                    self.add_connection(nx, ny, x, y)
                 
             # if there is a path to the left
             elif self.measures.lineSensor[6] == '1':
                 if self.measures.lineSensor.count('1') > 3:
-                    coef = self.get_neightbor_coeficient('right')
+                    coef = self.get_neightbor_coeficient('right', compass)
                     nx = x
                     ny = y
                     if self.rotation == 0:
@@ -610,10 +626,10 @@ class MyRob(CRobLinkAngs):
                     nx = 2*round(nx/2) + 2*coef[0]
                     ny = 2*round(ny/2) + 2*coef[1]
                     self.add_unexplored(nx, ny)            
-                    self.add_connection(nx, ny)
+                    self.add_connection(nx, ny, x, y)
 
             if '1' in self.measures.lineSensor[2:5]:
-                    coef = self.get_neightbor_coeficient('front')
+                    coef = self.get_neightbor_coeficient('front', compass)
                     nx = x
                     ny = y
                     if self.rotation == 0:
@@ -628,15 +644,15 @@ class MyRob(CRobLinkAngs):
                     ny = 2*round(ny/2) + 2*coef[1]
                     
                     # add connection on x,y at border cell
-                    if (x == 2*round(x/2) and coef[0]) or (y == 2*round(y/2) and coef[1]):       
+                    if (abs(x - 2*round(x/2)) < 0.01 and coef[0]) or (abs(y - 2*round(y/2)) < 0.01 and coef[1]):       
                         self.add_unexplored(nx, ny)                
-                        self.add_connection(nx, ny)
+                        self.add_connection(nx, ny, x, y)
 
             if self.has_path == 'path_finding':
                 # path exists
                 if len(self.path):
                     # destination reached
-                    if (self.dest[0] == 'x' and self.dest[1] == x) or (self.dest[0] == 'y' and self.dest[1] == y):
+                    if (self.dest[0] == 'x' and abs(self.dest[1] - x) < 0.01) or (self.dest[0] == 'y' and abs(self.dest[1] - y) < 0.01):
                         self.path = self.path[1:]
                         if len(self.path) == 0 and len(self.unexploredpaths) == 0 and len(self.beacons) == int(self.nBeacons):
                             print('finish')
@@ -647,23 +663,28 @@ class MyRob(CRobLinkAngs):
                         # full path reached
                         if len(self.path) == 0:
                             self.set_path(x, y)
-                        self.set_destination_and_rotation(x, y)
+                        self.set_destination_and_rotation(2*round(x/2), 2*round(y/2))
                 # path does not exist
                 else:
                     self.set_path(x, y)
-                    self.set_destination_and_rotation(x, y)
+                    self.set_destination_and_rotation(2*round(x/2), 2*round(y/2))
                     
                 # forward
-                if ((self.dest[0] == 'x' and self.dest[1] != x) or (self.dest[0] == 'y' and self.dest[1] != y)) and abs(self.rotation-self.measures.compass) <= 2:
-                    lpow, rpow = self.forward(x, y)
+                if ((self.dest[0] == 'x' and abs(self.dest[1] - x) > 0.01) or (self.dest[0] == 'y' and abs(self.dest[1] - y) > 0.01)) and abs(self.rotation-compass) <= 2:
+                    lpow, rpow = self.forward(x, y, compass)
                 # rotate
                 else:
-                    lpow, rpow = self.rotate()
+                    lpow, rpow = self.rotate(compass)
             else:
                 lpow, rpow = 0, 0
             
-            
+            print(f'path = {self.path}')
+            print(f'lineSensor = {self.measures.lineSensor}')
+            print(f'exploredpath = {self.exploredpath}')
+            print(f'destination = {self.dest[0]}, {self.dest[1]}')
+            print(f'lpow, rpow = {lpow}, {rpow}')
             self.driveMotors(lpow, rpow)
+            self.update_model(lpow, rpow)
             
             
 
@@ -671,7 +692,7 @@ class MyRob(CRobLinkAngs):
 
 
 
-    def forward(self, x, y):
+    def forward(self, x, y, compass):
         pow = 0
         if self.dest[0] == 'x':
             if self.rotation == -180:
@@ -683,19 +704,19 @@ class MyRob(CRobLinkAngs):
                 pow = self.pid_Controller.go(y, self.dest[1])
             else:
                 pow = self.pid_Controller.go(self.dest[1], y)
-        return self.go(pow, 0.3, self.measures.compass/180, self.rotation/180)
+        return self.go(pow, 0.3, compass/180, self.rotation/180)
 
-    def rotate(self):
-        compass = self.measures.compass + 180
+    def rotate(self, compass):
+        compass2 = compass + 180
         rotation = self.rotation + 180
             
-        difference = abs(rotation - compass)
-        difference2 = abs(360 - rotation - compass)
+        difference = abs(rotation - compass2)
+        difference2 = abs(360 - rotation - compass2)
        
         if difference <= difference2:
-            pow = self.pid_Controller.go((self.rotation+180)/360, (self.measures.compass+180)/360, True)
+            pow = self.pid_Controller.go((self.rotation+180)/360, (compass+180)/360, True)
         else:
-            pow = self.pid_Controller.go((self.measures.compass+180)/360, (self.rotation+180)/360, True)
+            pow = self.pid_Controller.go((compass+180)/360, (self.rotation+180)/360, True)
 
         return -pow, pow
 
@@ -704,6 +725,7 @@ class MyRob(CRobLinkAngs):
         # pesquisa no mapa em vez da lista
         minimum = math.inf
         target = None
+        print(self.unexploredpaths)
         for point in self.unexploredpaths:
             if point != (x,y):
                 dist = abs(x-point[0]) + abs(y-point[1])
@@ -721,10 +743,10 @@ class MyRob(CRobLinkAngs):
 
         return self.pathtoexplore
 
-    def get_neightbor_coeficient(self, direction):
+    def get_neightbor_coeficient(self, direction, compass):
         calc = [0, 0]
         # up
-        if 80 < self.measures.compass < 100:
+        if 80 < compass < 100:
             if direction == 'left':
                 calc = [-1, 0]
             elif direction == 'front':
@@ -732,7 +754,7 @@ class MyRob(CRobLinkAngs):
             else:
                 calc = [1, 0]
         # right
-        elif -10 < self.measures.compass < 10:
+        elif -10 < compass < 10:
             if direction == 'left':
                 calc = [0, 1]
             elif direction == 'front':
@@ -740,7 +762,7 @@ class MyRob(CRobLinkAngs):
             else:
                 calc = [0, -1]
         # left
-        elif -180 <= self.measures.compass < -170 or 170 < self.measures.compass <= 180:
+        elif -180 <= compass < -170 or 170 < compass <= 180:
             if direction == 'left':
                 calc = [0, -1]
             elif direction == 'front':
@@ -748,7 +770,7 @@ class MyRob(CRobLinkAngs):
             else:
                 calc = [0, 1]
         # down
-        elif -100 < self.measures.compass < -80:
+        elif -100 < compass < -80:
             if direction == 'left':
                 calc = [1, 0]
             elif direction == 'front':
@@ -758,8 +780,7 @@ class MyRob(CRobLinkAngs):
 
         return calc
 
-    def add_connection(self, nx, ny):
-        x, y = self.get_correct_measures()
+    def add_connection(self, nx, ny, x, y):
         x = 2*round(x/2)
         y = 2*round(y/2)
         if [[x, y], [nx, ny]] not in self.connections:
@@ -875,8 +896,20 @@ class MyRob(CRobLinkAngs):
             f.close()
         
     def get_correct_measures(self):
-        m = [self.measures.x + self.diffpos[0], self.measures.y + self.diffpos[1]]
-        return m
+        if self.challenge == '4':
+            x = self.prev_pos[0] + self.lin*math.cos(self.prev_angle)
+            y = self.prev_pos[1] + self.lin*math.sin(self.prev_angle)
+            self.prev_pos = [x, y]
+            return [x, y]
+        else:
+            return [self.measures.x + self.diffpos[0], self.measures.y + self.diffpos[1]]
+
+
+    def update_model(self, lpow, rpow):
+        self.lin = (lpow + rpow)/2
+        rot = rpow - lpow
+        self.prev_angle = self.prev_angle + rot
+        print(f'lin = {self.lin} \nprev_angle = {self.prev_angle}')
 
 class Map():
     def __init__(self, filename):
