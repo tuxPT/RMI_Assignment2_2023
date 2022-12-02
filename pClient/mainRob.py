@@ -1,5 +1,6 @@
 
 import sys
+from colorama import Fore, Back, Style
 import numpy
 from croblink import *
 from math import *
@@ -188,62 +189,69 @@ class MyRob(CRobLinkAngs):
         return [lpow, rpow]
 
 
-    def detect_and_correct_error(self):
-        array = self.measures.lineSensor
+    def detect_and_correct_error(self, array):
         count = 0
         index = None
-        if self.measures.lineSensor.count('0') == 7:
-            print(f'OUT')
+        if array.count(0) == 7:
+            print(Back.RED+f'OUT')
+            print(Style.RESET_ALL)
         for i in range(0, 7):
             for j in range(i+1, 7):
-                if array[i] == '1' and array[j] == '1' and array[i:j+1].count('0'):
+                if array[i] == 1 and array[j] == 1 and array[i:j+1].count(0):
                     if index == None:
-                        print(f'DETECTED: {array}')
-                        index = array.index('0', i, j)
-                    if count < array[i:j+1].count('0'):
-                        count = array[i:j+1].count('0')
+                        print(Back.YELLOW+f'DETECTED: {array}')
+                        print(Style.RESET_ALL)
+                        index = array.index(0, i, j)
+                    if count < array[i:j+1].count(0):
+                        count = array[i:j+1].count(0)
         if index:
-            print(f'index: {index}')
+            print(Fore.GREEN+f'index: {index}')
             print(f'count: {count}')
+            print(Style.RESET_ALL)
             #if count == 1:
             #    array[index] = '1'
-            if array[6] == '1' and count < 2 and index > 3:
+            """ if array[6] == '1' and count < 2 and index > 3:
                 array = ['0']*count + array[0:index] + array[index+count:7]
             elif array[0] == '1' and count < 2 and index < 3:
-                array = array[0:index] + array[index+count:7] + ['0']*count
-            elif array[0:index].count('1') > array[index+1:7].count('1'):
-                array = array[0:index] + array[index+count:7] + ['0']*count
+                array = array[0:index] + array[index+count:7] + ['0']*count """
+            if array[0:index].count(1) > array[index+1:7].count(1):
+                array = array[0:index] + array[index+count:7] + [0 for i in range(0, count)]
             else:
-                array = ['0']*count + array[0:index] + array[index+count:7]
+                array = [0 for i in range(0, count)] + array[0:index] + array[index+count:7]
 
             print(f'Corrected: {array}')
         return array
 
     def weighted_average(self):
         if self.measures.lineSensor.count('0') == 7:
-            print(f'OUT')
+            print(Back.RED+f'OUT')
+            print(Style.RESET_ALL)
         last_value = [0 if i == '0' else 1 for i in self.measures.lineSensor]
         print(f'last_value:       {last_value}')
-        if last_value.count(1) > 2:
-            self.linesensor_buffer.append(last_value)
-            if len(self.linesensor_buffer) > 3:
-                self.linesensor_buffer.popleft()
+        if len(self.linesensor_buffer) < 3:
+            self.linesensor_buffer.extend([last_value, last_value, last_value])
+        self.linesensor_buffer.append(last_value)
+        if len(self.linesensor_buffer) > 3:
+            self.linesensor_buffer.popleft()
         print(f'deque:            {self.linesensor_buffer}')
         s = [0]*7
         for i in range(0, len(self.linesensor_buffer)):
             for j in range(0, 7):
                 s[j] += self.linesensor_buffer[i][j]*(i+1)/6
 
-        print(f'Weighted average: {s}')
+        print(f'Weighted average(lineSensor): {s}')
         for i in range(0, 7):
             s[i] = round(s[i]+0.00001)
 
-        print(f'Weighted average: {s}')
+        s = self.detect_and_correct_error(s)
+        print(f'Weighted average(lineSensor): {s}')
         return s
 
     def get_correct_compass(self):
         last_value = self.measures.compass
         print(f'last_value:       {last_value}')
+        if len(self.compass_buffer) < 3:
+            self.compass_buffer.extend([last_value, last_value, last_value])
         self.compass_buffer.append(last_value)
         if len(self.compass_buffer) > 3:
             self.compass_buffer.popleft()
@@ -252,7 +260,7 @@ class MyRob(CRobLinkAngs):
         for i in range(0, len(self.compass_buffer)):
             s += self.compass_buffer[i]*(i+1)/6
 
-        print(f'Weighted average: {s}')
+        print(f'Weighted average(angle): {s}')
         return s
 
 
@@ -274,13 +282,13 @@ class MyRob(CRobLinkAngs):
             nx = x
             ny = y
             if self.rotation == 0:
-                nx += 0.432
+                nx += 0.438
             elif self.rotation == -180:
-                nx -= 0.432
+                nx -= 0.438
             if self.rotation == 90:
-                ny += 0.432
+                ny += 0.438
             elif self.rotation == -90:
-                ny -= 0.432
+                ny -= 0.438
             nx = 2*round(nx/2) + 2*coef[0]
             ny = 2*round(ny/2) + 2*coef[1]
             self.add_unexplored(nx, ny)                 
@@ -289,13 +297,13 @@ class MyRob(CRobLinkAngs):
             nx = x
             ny = y
             if self.rotation == 0:
-                nx += 0.432
+                nx += 0.438
             elif self.rotation == -180:
-                nx -= 0.432
+                nx -= 0.438
             if self.rotation == 90:
-                ny += 0.432
+                ny += 0.438
             elif self.rotation == -90:
-                ny -= 0.432
+                ny -= 0.438
             nx = 2*round(nx/2) + 2*coef[0]
             ny = 2*round(ny/2) + 2*coef[1]
             self.add_unexplored(nx, ny)              
@@ -307,13 +315,13 @@ class MyRob(CRobLinkAngs):
                 nx = x
                 ny = y
                 if self.rotation == 0:
-                    nx += 0.432
+                    nx += 0.438
                 elif self.rotation == -180:
-                    nx -= 0.432
+                    nx -= 0.438
                 if self.rotation == 90:
-                    ny += 0.432
+                    ny += 0.438
                 elif self.rotation == -90:
-                    ny -= 0.432
+                    ny -= 0.438
                 nx = 2*round(nx/2) + 2*coef[0]
                 ny = 2*round(ny/2) + 2*coef[1]
                 self.add_unexplored(nx, ny)            
@@ -327,13 +335,13 @@ class MyRob(CRobLinkAngs):
                 nx = x
                 ny = y
                 if self.rotation == 0:
-                    nx += 0.432
+                    nx += 0.438
                 elif self.rotation == -180:
-                    nx -= 0.432
+                    nx -= 0.438
                 if self.rotation == 90:
-                    ny += 0.432
+                    ny += 0.438
                 elif self.rotation == -90:
-                    ny -= 0.432
+                    ny -= 0.438
                 nx = 2*round(nx/2) + 2*coef[0]
                 ny = 2*round(ny/2) + 2*coef[1]
                 self.add_unexplored(nx, ny)            
@@ -344,13 +352,13 @@ class MyRob(CRobLinkAngs):
                 nx = x
                 ny = y
                 if self.rotation == 0:
-                    nx += 0.432
+                    nx += 0.438
                 elif self.rotation == -180:
-                    nx -= 0.432
+                    nx -= 0.438
                 if self.rotation == 90:
-                    ny += 0.432
+                    ny += 0.438
                 elif self.rotation == -90:
-                    ny -= 0.432
+                    ny -= 0.438
                 nx = 2*round(nx/2) + 2*coef[0]
                 ny = 2*round(ny/2) + 2*coef[1]
                 # add connection on x,y at border cell
@@ -415,13 +423,13 @@ class MyRob(CRobLinkAngs):
                 nx = x
                 ny = y
                 if self.rotation == 0:
-                    nx += 0.432
+                    nx += 0.438
                 elif self.rotation == -180:
-                    nx -= 0.432
+                    nx -= 0.438
                 if self.rotation == 90:
-                    ny += 0.432
+                    ny += 0.438
                 elif self.rotation == -90:
-                    ny -= 0.432
+                    ny -= 0.438
                 nx = 2*round(nx/2) + 2*coef[0]
                 ny = 2*round(ny/2) + 2*coef[1]
                 self.add_unexplored(nx, ny)                 
@@ -430,13 +438,13 @@ class MyRob(CRobLinkAngs):
                 nx = x
                 ny = y
                 if self.rotation == 0:
-                    nx += 0.432
+                    nx += 0.438
                 elif self.rotation == -180:
-                    nx -= 0.432
+                    nx -= 0.438
                 if self.rotation == 90:
-                    ny += 0.432
+                    ny += 0.438
                 elif self.rotation == -90:
-                    ny -= 0.432
+                    ny -= 0.438
                 nx = 2*round(nx/2) + 2*coef[0]
                 ny = 2*round(ny/2) + 2*coef[1]
                 self.add_unexplored(nx, ny)              
@@ -449,13 +457,13 @@ class MyRob(CRobLinkAngs):
                     nx = x
                     ny = y
                     if self.rotation == 0:
-                        nx += 0.432
+                        nx += 0.438
                     elif self.rotation == -180:
-                        nx -= 0.432
+                        nx -= 0.438
                     if self.rotation == 90:
-                        ny += 0.432
+                        ny += 0.438
                     elif self.rotation == -90:
-                        ny -= 0.432
+                        ny -= 0.438
                     nx = 2*round(nx/2) + 2*coef[0]
                     ny = 2*round(ny/2) + 2*coef[1]
                     self.add_unexplored(nx, ny)            
@@ -468,13 +476,13 @@ class MyRob(CRobLinkAngs):
                     nx = x
                     ny = y
                     if self.rotation == 0:
-                        nx += 0.432
+                        nx += 0.438
                     elif self.rotation == -180:
-                        nx -= 0.432
+                        nx -= 0.438
                     if self.rotation == 90:
-                        ny += 0.432
+                        ny += 0.438
                     elif self.rotation == -90:
-                        ny -= 0.432
+                        ny -= 0.438
                     nx = 2*round(nx/2) + 2*coef[0]
                     ny = 2*round(ny/2) + 2*coef[1]
                     self.add_unexplored(nx, ny)            
@@ -485,13 +493,13 @@ class MyRob(CRobLinkAngs):
                     nx = x
                     ny = y
                     if self.rotation == 0:
-                        nx += 0.432
+                        nx += 0.438
                     elif self.rotation == -180:
-                        nx -= 0.432
+                        nx -= 0.438
                     if self.rotation == 90:
-                        ny += 0.432
+                        ny += 0.438
                     elif self.rotation == -90:
-                        ny -= 0.432
+                        ny -= 0.438
                     nx = 2*round(nx/2) + 2*coef[0]
                     ny = 2*round(ny/2) + 2*coef[1]
                     
@@ -540,7 +548,8 @@ class MyRob(CRobLinkAngs):
             #self.save_path()
 
     def wanderC4(self):
-        #self.detect_and_correct_error()
+        lineSensor = self.weighted_average()
+        print(lineSensor)
         x,y = self.get_correct_measures()
         compass = self.get_correct_compass()
         print(f'x: {x}, y: {y}')
@@ -558,18 +567,18 @@ class MyRob(CRobLinkAngs):
             self.rem_unexplored(x, y)
 
             # if there is a path both to the right and to the left
-            if self.measures.lineSensor.count('1') == 7:
+            if lineSensor.count(1) == 7:
                 coef = self.get_neightbor_coeficient('left', compass)
                 nx = x
                 ny = y
                 if self.rotation == 0:
-                    nx += 0.432
+                    nx += 0.438
                 elif self.rotation == -180:
-                    nx -= 0.432
+                    nx -= 0.438
                 if self.rotation == 90:
-                    ny += 0.432
+                    ny += 0.438
                 elif self.rotation == -90:
-                    ny -= 0.432
+                    ny -= 0.438
                 nx = 2*round(nx/2) + 2*coef[0]
                 ny = 2*round(ny/2) + 2*coef[1]
                 self.add_unexplored(nx, ny)                 
@@ -578,75 +587,86 @@ class MyRob(CRobLinkAngs):
                 nx = x
                 ny = y
                 if self.rotation == 0:
-                    nx += 0.432
+                    nx += 0.438
                 elif self.rotation == -180:
-                    nx -= 0.432
+                    nx -= 0.438
                 if self.rotation == 90:
-                    ny += 0.432
+                    ny += 0.438
                 elif self.rotation == -90:
-                    ny -= 0.432
+                    ny -= 0.438
                 nx = 2*round(nx/2) + 2*coef[0]
                 ny = 2*round(ny/2) + 2*coef[1]
                 self.add_unexplored(nx, ny)              
                 self.add_connection(nx, ny, x, y)
 
             # if there is a path to the left
-            elif self.measures.lineSensor[0] == '1':
-                if self.measures.lineSensor.count('1') > 3:
+            elif lineSensor[0] == 1:
+                if lineSensor.count(1) > 3:
+                    x = 2*round(x/2)
+                    y = 2*round(y/2)
+                    self.prev_pos = [x, y]
                     coef = self.get_neightbor_coeficient('left', compass)
                     nx = x
                     ny = y
                     if self.rotation == 0:
-                        nx += 0.432
+                        nx += 0.438
                     elif self.rotation == -180:
-                        nx -= 0.432
+                        nx -= 0.438
                     if self.rotation == 90:
-                        ny += 0.432
+                        ny += 0.438
                     elif self.rotation == -90:
-                        ny -= 0.432
+                        ny -= 0.438
                     nx = 2*round(nx/2) + 2*coef[0]
                     ny = 2*round(ny/2) + 2*coef[1]
                     self.add_unexplored(nx, ny)            
                     self.add_connection(nx, ny, x, y)
                 
             # if there is a path to the left
-            elif self.measures.lineSensor[6] == '1':
-                if self.measures.lineSensor.count('1') > 3:
+            elif lineSensor[6] == 1:
+                if lineSensor.count(1) > 3:
+                    print(Back.GREEN+f'HAS RIGHT')
+                    x = 2*round(x/2)
+                    y = 2*round(y/2)
+                    self.prev_pos = [x, y]
                     coef = self.get_neightbor_coeficient('right', compass)
                     nx = x
                     ny = y
                     if self.rotation == 0:
-                        nx += 0.432
+                        nx += 0.438
                     elif self.rotation == -180:
-                        nx -= 0.432
+                        nx -= 0.438
                     if self.rotation == 90:
-                        ny += 0.432
+                        ny += 0.438
                     elif self.rotation == -90:
-                        ny -= 0.432
+                        ny -= 0.438
                     nx = 2*round(nx/2) + 2*coef[0]
                     ny = 2*round(ny/2) + 2*coef[1]
                     self.add_unexplored(nx, ny)            
                     self.add_connection(nx, ny, x, y)
+            
+            print(lineSensor)
 
-            if '1' in self.measures.lineSensor[2:5]:
-                    coef = self.get_neightbor_coeficient('front', compass)
-                    nx = x
-                    ny = y
-                    if self.rotation == 0:
-                        nx += 0.432
-                    elif self.rotation == -180:
-                        nx -= 0.432
-                    if self.rotation == 90:
-                        ny += 0.432
-                    elif self.rotation == -90:
-                        ny -= 0.432
-                    nx = 2*round(nx/2) + 2*coef[0]
-                    ny = 2*round(ny/2) + 2*coef[1]
-                    
-                    # add connection on x,y at border cell
-                    if (abs(x - 2*round(x/2)) < 0.01 and coef[0]) or (abs(y - 2*round(y/2)) < 0.01 and coef[1]):       
-                        self.add_unexplored(nx, ny)                
-                        self.add_connection(nx, ny, x, y)
+            if lineSensor[2:5].count(1) > 1:
+                print(Back.GREEN+f'HAS FORWARD')
+                print(Style.RESET_ALL)
+                coef = self.get_neightbor_coeficient('front', compass)
+                nx = x
+                ny = y
+                if self.rotation == 0:
+                    nx += 0.438
+                elif self.rotation == -180:
+                    nx -= 0.438
+                if self.rotation == 90:
+                    ny += 0.438
+                elif self.rotation == -90:
+                    ny -= 0.438
+                nx = 2*round(nx/2) + 2*coef[0]
+                ny = 2*round(ny/2) + 2*coef[1]
+                
+                # add connection on x,y at border cell
+                if (abs(nx - 2*round(nx/2)) < 0.02 and coef[0]) or (abs(ny - 2*round(ny/2)) < 0.02 and coef[1]):       
+                    self.add_unexplored(nx, ny)                
+                    self.add_connection(nx, ny, x, y)
 
             if self.has_path == 'path_finding':
                 # path exists
@@ -681,6 +701,8 @@ class MyRob(CRobLinkAngs):
             print(f'path = {self.path}')
             print(f'lineSensor = {self.measures.lineSensor}')
             print(f'exploredpath = {self.exploredpath}')
+            print(f'unexploredpath = {self.unexploredpaths}')
+            print(f'connections = {self.connections}')
             print(f'destination = {self.dest[0]}, {self.dest[1]}')
             print(f'lpow, rpow = {lpow}, {rpow}')
             self.driveMotors(lpow, rpow)
@@ -786,6 +808,10 @@ class MyRob(CRobLinkAngs):
         if [[x, y], [nx, ny]] not in self.connections:
             self.connections.append([[x, y], [nx, ny]])
             self.write_known_path(x, y, nx, ny)
+            print(Back.YELLOW+f'added connection [{x}, {y}] <-> [{nx}, {ny}]')
+            print(Style.RESET_ALL)
+
+
 
     def rem_unexplored(self, x, y):
         nx = round(x)
@@ -796,6 +822,8 @@ class MyRob(CRobLinkAngs):
     def add_unexplored(self, nx, ny):
         if (nx, ny) != (24, 10) and (nx, ny) not in self.exploredpath:
             self.unexploredpaths.add((nx, ny))
+            print(Back.YELLOW+Fore.BLACK+f'added unexplored {nx}, {ny}')
+            print(Style.RESET_ALL)
 
     def write_known_path(self, ix, iy, fx, fy):
         x = int((ix+fx)/2)
@@ -909,7 +937,7 @@ class MyRob(CRobLinkAngs):
         self.lin = (lpow + rpow)/2
         rot = rpow - lpow
         self.prev_angle = self.prev_angle + rot
-        print(f'lin = {self.lin} \nprev_angle = {self.prev_angle}')
+        print(f'lin = {self.lin} \nprev_angle = {self.prev_angle*180/math.pi}')
 
 class Map():
     def __init__(self, filename):
