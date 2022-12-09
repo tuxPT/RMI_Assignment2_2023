@@ -93,7 +93,7 @@ class MyRob(CRobLinkAngs):
         self.rob_name = rob_name
         self.challenge = challenge
         self.outfile = outfile
-        self.pid_Controller = PIDController(0.07, 1000, 0.000001, 0.050, 0.5, math.inf, 0.000001)
+        self.pid_Controller = PIDController(0.07, math.inf, 0.000001, 0.050, 0.5, math.inf, 0.000001)
         if self.challenge == "1":
             self.track = []
         else:
@@ -290,13 +290,12 @@ class MyRob(CRobLinkAngs):
             self.add_unexplored(nx, ny)                 
             self.add_connection(nx, ny, x, y)
             nx, ny, _ = self.getAdjacentPos('right', angle)
-            x, y = self.prev_pos
             self.add_unexplored(nx, ny)              
             self.add_connection(nx, ny, x, y)
 
         # if there is a path to the left
         elif lineSensor[0] == 1:
-            if lineSensor.count(1) > 3:
+            if lineSensor.count(1) > 4:
                 nx, ny, _ = self.getAdjacentPos('left', angle)
                 x, y = self.prev_pos
 
@@ -305,7 +304,7 @@ class MyRob(CRobLinkAngs):
             
         # if there is a path to the right
         elif lineSensor[6] == 1:
-            if lineSensor.count(1) > 3:
+            if lineSensor.count(1) > 4:
                 nx, ny, _ = self.getAdjacentPos('right', angle)
                 x, y = self.prev_pos
 
@@ -314,13 +313,13 @@ class MyRob(CRobLinkAngs):
         
         print(lineSensor)
 
-        if lineSensor[2:5].count(1) > 1:
-            nx, ny, coef = self.getAdjacentPos('front', angle)
+        nx, ny, coef = self.getAdjacentPos('front', angle)
+        if 4 > lineSensor.count(1) > 1 and 4 > lineSensor[2:5].count(1) > 1 and (abs(x - 2*round(x/2)) < 0.1 and coef[0]) or (abs(y - 2*round(y/2)) < 0.1 and coef[1]):
             x, y = self.prev_pos
             # add connection on x,y at border cell
-            if (abs(nx - 2*round(nx/2)) < 0.02 and coef[0]) or (abs(ny - 2*round(ny/2)) < 0.02 and coef[1]):       
-                self.add_unexplored(nx, ny)                
-                self.add_connection(nx, ny, x, y)
+            print(f'NX, NY: {nx}, {ny}')
+            self.add_unexplored(nx, ny)                
+            self.add_connection(nx, ny, x, y)
 
         # path exists
         if len(self.path):
@@ -342,11 +341,17 @@ class MyRob(CRobLinkAngs):
             self.set_path(x, y)
             self.set_destination_and_rotation(x, y)
                 
+
+        rotation2 = (self.rotation + 180)%360
+        angle2 = (angle + 180)%360
+        print(f'ROTATION2: {rotation2}, ANGLE2: {angle2}')
         # forward
-        if ((self.dest[0] == 'x' and abs(self.dest[1] - x) > 0.001) or (self.dest[0] == 'y' and abs(self.dest[1] - y) > 0.001)) and abs(self.rotation-angle) <= 1:
-            lpow, rpow = self.forward(x, y, angle)
+        if ((self.dest[0] == 'x' and abs(self.dest[1] - x) > 0.01) or (self.dest[0] == 'y' and abs(self.dest[1] - y) > 0.01)) and abs(rotation2 - angle2) < 10:
+            lpow, rpow = self.forward(x, y, angle, lineSensor)
         # rotate
         else:
+            print(Back.BLUE+Fore.BLACK+'ROTATE')
+            print(Style.RESET_ALL)
             lpow, rpow = self.rotate(angle)
 
         print(f'path = {self.path}')
@@ -368,9 +373,7 @@ class MyRob(CRobLinkAngs):
         
         coef = self.get_neightbor_coeficient(direction, angle)
         x, y = self.prev_pos
-        nx = 2*round(x/2)
-        ny = 2*round(y/2)
-        if direction != 'front' and abs(self.rotation - angle) < 1:
+        if direction != 'front' and abs(self.rotation+180 - angle-180) < 10:
             x = 2*round(x/2)
             y = 2*round(y/2)
             if self.rotation == 0:
@@ -381,8 +384,13 @@ class MyRob(CRobLinkAngs):
                 y -=0.438
             elif self.rotation == -90:
                 y += 0.438
+            self.prev_pos = [x, y]
 
-        print(f'Corrected x: {x}, y: {y}')
+            print(f'Corrected x: {x}, y: {y}')
+
+        nx = x
+        ny = y
+
 
        
         if self.rotation == 0:
@@ -394,13 +402,12 @@ class MyRob(CRobLinkAngs):
         elif self.rotation == -90:
             ny -= 0.438
 
-        self.prev_pos = [x, y]
         nx = 2*round(nx/2) + 2*coef[0]
         ny = 2*round(ny/2) + 2*coef[1]
         return [nx, ny, coef]
 
 
-    def forward(self, x, y, compass):
+    def forward(self, x, y, compass, lineSensor):
         pow = 0
         if self.dest[0] == 'x':
             if self.rotation == -180:
@@ -412,7 +419,21 @@ class MyRob(CRobLinkAngs):
                 pow = self.pid_Controller.go(y, self.dest[1])
             else:
                 pow = self.pid_Controller.go(self.dest[1], y)
-        return self.go(pow, 0.3, compass/180, self.rotation/180)
+       
+        if ((self.dest[0] == 'x' and abs(self.dest[1] - x) > 0.5) or (self.dest[0] == 'y' and abs(self.dest[1] - y) > 0.5)):
+            return self.go(pow, 0.5, lineSensor[3:7].count(1)/3, lineSensor[0:4].count(1)/3)
+        else:
+            compass2 = compass + 180
+            rotation = self.rotation + 180
+                
+            difference = abs(rotation - compass2)
+            difference2 = abs(360 - rotation - compass2)
+            
+            if difference <= difference2:
+                return self.go(pow, 0.5, (compass+180)/360, (self.rotation+180)/360)
+            else:
+                return self.go(pow, 0.5, (self.rotation+180)/360, (compass+180)/360)
+
 
     def rotate(self, compass):
         compass2 = compass + 180
