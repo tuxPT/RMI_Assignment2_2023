@@ -8,6 +8,7 @@ import math
 import xml.etree.ElementTree as ET
 from tree_search import *
 from collections import deque
+import wander
 
 CELLROWS=7
 CELLCOLS=14
@@ -199,7 +200,7 @@ class MyRob(CRobLinkAngs):
             for j in range(i+1, 7):
                 if array[i] == 1 and array[j] == 1 and array[i:j+1].count(0):
                     if index == None:
-                        print(Back.YELLOW+f'DETECTED: {array}')
+                        print(Back.YELLOW+Fore.BLACK+f'DETECTED: {array}')
                         print(Style.RESET_ALL)
                         index = array.index(0, i, j)
                     if count < array[i:j+1].count(0):
@@ -260,458 +261,143 @@ class MyRob(CRobLinkAngs):
         for i in range(0, len(self.compass_buffer)):
             s += self.compass_buffer[i]*(i+1)/6
 
+        self.prev_angle = s/180*math.pi
+
         print(f'Weighted average(angle): {s}')
         return s
 
 
-    def wanderC1(self):        
-        linSensor = self.weighted_average()
-        lpow, rpow = self.go(0.15, 2, linSensor[0:3].count(0)/7, linSensor[4:7].count(0)/7)
-        self.driveMotors(lpow, rpow)
-
-    def wanderC2(self):
-        x, y = self.get_correct_measures()
-
-
-        self.exploredpath.add((2*round(x/2), 2*round(y/2)))
-        self.rem_unexplored(x, y)
-
-        # if there is a path both to the right and to the left
-        if self.measures.lineSensor.count('1') == 7:
-            coef = self.get_neightbor_coeficient('left')
-            nx = x
-            ny = y
-            if self.rotation == 0:
-                nx += 0.438
-            elif self.rotation == -180:
-                nx -= 0.438
-            if self.rotation == 90:
-                ny += 0.438
-            elif self.rotation == -90:
-                ny -= 0.438
-            nx = 2*round(nx/2) + 2*coef[0]
-            ny = 2*round(ny/2) + 2*coef[1]
-            self.add_unexplored(nx, ny)                 
-            self.add_connection(nx, ny)
-            coef = self.get_neightbor_coeficient('right')
-            nx = x
-            ny = y
-            if self.rotation == 0:
-                nx += 0.438
-            elif self.rotation == -180:
-                nx -= 0.438
-            if self.rotation == 90:
-                ny += 0.438
-            elif self.rotation == -90:
-                ny -= 0.438
-            nx = 2*round(nx/2) + 2*coef[0]
-            ny = 2*round(ny/2) + 2*coef[1]
-            self.add_unexplored(nx, ny)              
-            self.add_connection(nx, ny)
-        # if there is a path to the left
-        elif self.measures.lineSensor[0] == '1':
-            if self.measures.lineSensor.count('1') > 3:
-                coef = self.get_neightbor_coeficient('left')
-                nx = x
-                ny = y
-                if self.rotation == 0:
-                    nx += 0.438
-                elif self.rotation == -180:
-                    nx -= 0.438
-                if self.rotation == 90:
-                    ny += 0.438
-                elif self.rotation == -90:
-                    ny -= 0.438
-                nx = 2*round(nx/2) + 2*coef[0]
-                ny = 2*round(ny/2) + 2*coef[1]
-                self.add_unexplored(nx, ny)            
-                self.add_connection(nx, ny)
-
-            
-        # if there is a path to the left
-        elif self.measures.lineSensor[6] == '1':
-            if self.measures.lineSensor.count('1') > 3:
-                coef = self.get_neightbor_coeficient('right')
-                nx = x
-                ny = y
-                if self.rotation == 0:
-                    nx += 0.438
-                elif self.rotation == -180:
-                    nx -= 0.438
-                if self.rotation == 90:
-                    ny += 0.438
-                elif self.rotation == -90:
-                    ny -= 0.438
-                nx = 2*round(nx/2) + 2*coef[0]
-                ny = 2*round(ny/2) + 2*coef[1]
-                self.add_unexplored(nx, ny)            
-                self.add_connection(nx, ny)
-
-        if '1' in self.measures.lineSensor[2:5]:
-                coef = self.get_neightbor_coeficient('front')
-                nx = x
-                ny = y
-                if self.rotation == 0:
-                    nx += 0.438
-                elif self.rotation == -180:
-                    nx -= 0.438
-                if self.rotation == 90:
-                    ny += 0.438
-                elif self.rotation == -90:
-                    ny -= 0.438
-                nx = 2*round(nx/2) + 2*coef[0]
-                ny = 2*round(ny/2) + 2*coef[1]
-                # add connection on x,y at border cell
-                if (x == 2*round(x/2) and coef[0]) or (y == 2*round(y/2) and coef[1]):       
-                    self.add_unexplored(nx, ny)                
-                    self.add_connection(nx, ny)
-    
-        if self.has_path == 'path_finding':
-            # path exists
-            if len(self.path):
-                # destination reached
-                if (self.dest[0] == 'x' and self.dest[1] == x) or (self.dest[0] == 'y' and self.dest[1] == y):
-                    self.path = self.path[1:]
-                    if len(self.path) == 0 and len(self.unexploredpaths) == 0:
-                        print('finish')
-                        self.has_path = 'stop'
-                        self.finish()
-                        return
-                    # full path reached
-                    if len(self.path) == 0:
-                       self.set_path(x, y)
-                    self.set_destination_and_rotation(x, y)
-            # path does not exist
-            else:
-                self.set_path(x, y)
-                self.set_destination_and_rotation(x, y)
-                
-            # forward
-            if ((self.dest[0] == 'x' and self.dest[1] != x) or (self.dest[0] == 'y' and self.dest[1] != y)) and abs(self.rotation-self.measures.compass) <= 2:
-                lpow, rpow = self.forward(x, y)
-            # rotate
-            else:
-                lpow, rpow = self.rotate()
-            
-            
-            self.driveMotors(lpow, rpow)
-           
-        if len(self.unexploredpaths) == 0 and len(self.path) == 0:
-            self.finish()
-
-        self.save_map()
-
-    def wanderC3(self):
-        x,y = self.get_correct_measures()
-
-        x = round(x)
-        y = round(y)
-
-        if self.measures.ground != -1:
-            if [x, y] not in self.beacons:
-                self.beacons.append([2*round(x/2), 2*round(y/2)])
-
-        if self.has_path == 'path_finding':
-            x, y = self.get_correct_measures()
-
-            self.exploredpath.add((2*round(x/2), 2*round(y/2)))
-            self.rem_unexplored(x, y)
-
-            # if there is a path both to the right and to the left
-            if self.measures.lineSensor.count('1') == 7:
-                coef = self.get_neightbor_coeficient('left')
-                nx = x
-                ny = y
-                if self.rotation == 0:
-                    nx += 0.438
-                elif self.rotation == -180:
-                    nx -= 0.438
-                if self.rotation == 90:
-                    ny += 0.438
-                elif self.rotation == -90:
-                    ny -= 0.438
-                nx = 2*round(nx/2) + 2*coef[0]
-                ny = 2*round(ny/2) + 2*coef[1]
-                self.add_unexplored(nx, ny)                 
-                self.add_connection(nx, ny)
-                coef = self.get_neightbor_coeficient('right')
-                nx = x
-                ny = y
-                if self.rotation == 0:
-                    nx += 0.438
-                elif self.rotation == -180:
-                    nx -= 0.438
-                if self.rotation == 90:
-                    ny += 0.438
-                elif self.rotation == -90:
-                    ny -= 0.438
-                nx = 2*round(nx/2) + 2*coef[0]
-                ny = 2*round(ny/2) + 2*coef[1]
-                self.add_unexplored(nx, ny)              
-                self.add_connection(nx, ny)
-
-            # if there is a path to the left
-            elif self.measures.lineSensor[0] == '1':
-                if self.measures.lineSensor.count('1') > 3:
-                    coef = self.get_neightbor_coeficient('left')
-                    nx = x
-                    ny = y
-                    if self.rotation == 0:
-                        nx += 0.438
-                    elif self.rotation == -180:
-                        nx -= 0.438
-                    if self.rotation == 90:
-                        ny += 0.438
-                    elif self.rotation == -90:
-                        ny -= 0.438
-                    nx = 2*round(nx/2) + 2*coef[0]
-                    ny = 2*round(ny/2) + 2*coef[1]
-                    self.add_unexplored(nx, ny)            
-                    self.add_connection(nx, ny)
-                
-            # if there is a path to the left
-            elif self.measures.lineSensor[6] == '1':
-                if self.measures.lineSensor.count('1') > 3:
-                    coef = self.get_neightbor_coeficient('right')
-                    nx = x
-                    ny = y
-                    if self.rotation == 0:
-                        nx += 0.438
-                    elif self.rotation == -180:
-                        nx -= 0.438
-                    if self.rotation == 90:
-                        ny += 0.438
-                    elif self.rotation == -90:
-                        ny -= 0.438
-                    nx = 2*round(nx/2) + 2*coef[0]
-                    ny = 2*round(ny/2) + 2*coef[1]
-                    self.add_unexplored(nx, ny)            
-                    self.add_connection(nx, ny)
-
-            if '1' in self.measures.lineSensor[2:5]:
-                    coef = self.get_neightbor_coeficient('front')
-                    nx = x
-                    ny = y
-                    if self.rotation == 0:
-                        nx += 0.438
-                    elif self.rotation == -180:
-                        nx -= 0.438
-                    if self.rotation == 90:
-                        ny += 0.438
-                    elif self.rotation == -90:
-                        ny -= 0.438
-                    nx = 2*round(nx/2) + 2*coef[0]
-                    ny = 2*round(ny/2) + 2*coef[1]
-                    
-                    # add connection on x,y at border cell
-                    if (x == 2*round(x/2) and coef[0]) or (y == 2*round(y/2) and coef[1]):       
-                        self.add_unexplored(nx, ny)                
-                        self.add_connection(nx, ny)
-
-            if self.has_path == 'path_finding':
-                # path exists
-                if len(self.path):
-                    # destination reached
-                    if (self.dest[0] == 'x' and self.dest[1] == x) or (self.dest[0] == 'y' and self.dest[1] == y):
-                        self.path = self.path[1:]
-                        if len(self.path) == 0 and len(self.unexploredpaths) == 0 and len(self.beacons) == int(self.nBeacons):
-                            print('finish')
-                            self.has_path = 'stop'
-                            self.beacons_path()
-                            self.finish()
-                            return
-                        # full path reached
-                        if len(self.path) == 0:
-                            self.set_path(x, y)
-                        self.set_destination_and_rotation(x, y)
-                # path does not exist
-                else:
-                    self.set_path(x, y)
-                    self.set_destination_and_rotation(x, y)
-                    
-                # forward
-                if ((self.dest[0] == 'x' and self.dest[1] != x) or (self.dest[0] == 'y' and self.dest[1] != y)) and abs(self.rotation-self.measures.compass) <= 2:
-                    lpow, rpow = self.forward(x, y)
-                # rotate
-                else:
-                    lpow, rpow = self.rotate()
-            else:
-                lpow, rpow = 0, 0
-            
-            
-            self.driveMotors(lpow, rpow)
-            
-            
-
-            #print('rotation = ' + str(self.rotation))
-            #print('compass = ' + str(self.measures.compass))
-            #self.save_path()
-
     def wanderC4(self):
         lineSensor = self.weighted_average()
         print(lineSensor)
-        x,y = self.get_correct_measures()
-        compass = self.get_correct_compass()
+        x,y = self.prev_pos = self.get_correct_measures()
+        xn, yn = [2*round(x/2), 2*round(y/2)]
+        angle = self.get_correct_compass()
         print(f'x: {x}, y: {y}')
-
-        xn = round(x)
-        yn = round(y)
 
         if self.measures.ground != -1:
             if [x, y] not in self.beacons:
                 self.beacons.append([xn, yn])
-                self.map[2*round(yn/2)][2*round(xn/2)] = str(self.measures.ground)
+                self.map[yn][xn] = str(self.measures.ground)
 
-        if self.has_path == 'path_finding':
-            self.exploredpath.add((2*round(x/2), 2*round(y/2)))
-            self.rem_unexplored(x, y)
+        self.exploredpath.add((xn, yn))
+        self.rem_unexplored(x, y)
 
-            # if there is a path both to the right and to the left
-            if lineSensor.count(1) == 7:
-                coef = self.get_neightbor_coeficient('left', compass)
-                nx = x
-                ny = y
-                if self.rotation == 0:
-                    nx += 0.438
-                elif self.rotation == -180:
-                    nx -= 0.438
-                if self.rotation == 90:
-                    ny += 0.438
-                elif self.rotation == -90:
-                    ny -= 0.438
-                nx = 2*round(nx/2) + 2*coef[0]
-                ny = 2*round(ny/2) + 2*coef[1]
-                self.add_unexplored(nx, ny)                 
+        # if there is a path both to the right and to the left
+        if lineSensor.count(1) == 7:
+            nx, ny, _ = self.getAdjacentPos('left', angle)
+            x, y = self.prev_pos
+            self.add_unexplored(nx, ny)                 
+            self.add_connection(nx, ny, x, y)
+            nx, ny, _ = self.getAdjacentPos('right', angle)
+            x, y = self.prev_pos
+            self.add_unexplored(nx, ny)              
+            self.add_connection(nx, ny, x, y)
+
+        # if there is a path to the left
+        elif lineSensor[0] == 1:
+            if lineSensor.count(1) > 3:
+                nx, ny, _ = self.getAdjacentPos('left', angle)
+                x, y = self.prev_pos
+
+                self.add_unexplored(nx, ny)            
                 self.add_connection(nx, ny, x, y)
-                coef = self.get_neightbor_coeficient('right', compass)
-                nx = x
-                ny = y
-                if self.rotation == 0:
-                    nx += 0.438
-                elif self.rotation == -180:
-                    nx -= 0.438
-                if self.rotation == 90:
-                    ny += 0.438
-                elif self.rotation == -90:
-                    ny -= 0.438
-                nx = 2*round(nx/2) + 2*coef[0]
-                ny = 2*round(ny/2) + 2*coef[1]
-                self.add_unexplored(nx, ny)              
-                self.add_connection(nx, ny, x, y)
-
-            # if there is a path to the left
-            elif lineSensor[0] == 1:
-                if lineSensor.count(1) > 3:
-                    x = 2*round(x/2)
-                    y = 2*round(y/2)
-                    self.prev_pos = [x, y]
-                    coef = self.get_neightbor_coeficient('left', compass)
-                    nx = x
-                    ny = y
-                    if self.rotation == 0:
-                        nx += 0.438
-                    elif self.rotation == -180:
-                        nx -= 0.438
-                    if self.rotation == 90:
-                        ny += 0.438
-                    elif self.rotation == -90:
-                        ny -= 0.438
-                    nx = 2*round(nx/2) + 2*coef[0]
-                    ny = 2*round(ny/2) + 2*coef[1]
-                    self.add_unexplored(nx, ny)            
-                    self.add_connection(nx, ny, x, y)
-                
-            # if there is a path to the left
-            elif lineSensor[6] == 1:
-                if lineSensor.count(1) > 3:
-                    print(Back.GREEN+f'HAS RIGHT')
-                    x = 2*round(x/2)
-                    y = 2*round(y/2)
-                    self.prev_pos = [x, y]
-                    coef = self.get_neightbor_coeficient('right', compass)
-                    nx = x
-                    ny = y
-                    if self.rotation == 0:
-                        nx += 0.438
-                    elif self.rotation == -180:
-                        nx -= 0.438
-                    if self.rotation == 90:
-                        ny += 0.438
-                    elif self.rotation == -90:
-                        ny -= 0.438
-                    nx = 2*round(nx/2) + 2*coef[0]
-                    ny = 2*round(ny/2) + 2*coef[1]
-                    self.add_unexplored(nx, ny)            
-                    self.add_connection(nx, ny, x, y)
             
-            print(lineSensor)
+        # if there is a path to the right
+        elif lineSensor[6] == 1:
+            if lineSensor.count(1) > 3:
+                nx, ny, _ = self.getAdjacentPos('right', angle)
+                x, y = self.prev_pos
 
-            if lineSensor[2:5].count(1) > 1:
-                print(Back.GREEN+f'HAS FORWARD')
-                print(Style.RESET_ALL)
-                coef = self.get_neightbor_coeficient('front', compass)
-                nx = x
-                ny = y
-                if self.rotation == 0:
-                    nx += 0.438
-                elif self.rotation == -180:
-                    nx -= 0.438
-                if self.rotation == 90:
-                    ny += 0.438
-                elif self.rotation == -90:
-                    ny -= 0.438
-                nx = 2*round(nx/2) + 2*coef[0]
-                ny = 2*round(ny/2) + 2*coef[1]
-                
-                # add connection on x,y at border cell
-                if (abs(nx - 2*round(nx/2)) < 0.02 and coef[0]) or (abs(ny - 2*round(ny/2)) < 0.02 and coef[1]):       
-                    self.add_unexplored(nx, ny)                
-                    self.add_connection(nx, ny, x, y)
+                self.add_unexplored(nx, ny)            
+                self.add_connection(nx, ny, x, y)
+        
+        print(lineSensor)
 
-            if self.has_path == 'path_finding':
-                # path exists
-                if len(self.path):
-                    # destination reached
-                    if (self.dest[0] == 'x' and abs(self.dest[1] - x) < 0.01) or (self.dest[0] == 'y' and abs(self.dest[1] - y) < 0.01):
-                        self.path = self.path[1:]
-                        if len(self.path) == 0 and len(self.unexploredpaths) == 0 and len(self.beacons) == int(self.nBeacons):
-                            print('finish')
-                            self.has_path = 'stop'
-                            self.beacons_path()
-                            self.finish()
-                            return
-                        # full path reached
-                        if len(self.path) == 0:
-                            self.set_path(x, y)
-                        self.set_destination_and_rotation(2*round(x/2), 2*round(y/2))
-                # path does not exist
-                else:
+        if lineSensor[2:5].count(1) > 1:
+            nx, ny, coef = self.getAdjacentPos('front', angle)
+            x, y = self.prev_pos
+            # add connection on x,y at border cell
+            if (abs(nx - 2*round(nx/2)) < 0.02 and coef[0]) or (abs(ny - 2*round(ny/2)) < 0.02 and coef[1]):       
+                self.add_unexplored(nx, ny)                
+                self.add_connection(nx, ny, x, y)
+
+        # path exists
+        if len(self.path):
+            # destination reached
+            if (self.dest[0] == 'x' and abs(self.dest[1] - x) < 0.01) or (self.dest[0] == 'y' and abs(self.dest[1] - y) < 0.01):
+                self.path = self.path[1:]
+                if len(self.path) == 0 and len(self.unexploredpaths) == 0 and len(self.beacons) == int(self.nBeacons):
+                    print('finish')
+                    self.has_path = 'stop'
+                    self.beacons_path()
+                    self.finish()
+                    return
+                # full path reached
+                if len(self.path) == 0:
                     self.set_path(x, y)
-                    self.set_destination_and_rotation(2*round(x/2), 2*round(y/2))
-                    
-                # forward
-                if ((self.dest[0] == 'x' and abs(self.dest[1] - x) > 0.01) or (self.dest[0] == 'y' and abs(self.dest[1] - y) > 0.01)) and abs(self.rotation-compass) <= 2:
-                    lpow, rpow = self.forward(x, y, compass)
-                # rotate
-                else:
-                    lpow, rpow = self.rotate(compass)
-            else:
-                lpow, rpow = 0, 0
-            
-            print(f'path = {self.path}')
-            print(f'lineSensor = {self.measures.lineSensor}')
-            print(f'exploredpath = {self.exploredpath}')
-            print(f'unexploredpath = {self.unexploredpaths}')
-            print(f'connections = {self.connections}')
-            print(f'destination = {self.dest[0]}, {self.dest[1]}')
-            print(f'lpow, rpow = {lpow}, {rpow}')
-            self.driveMotors(lpow, rpow)
-            self.update_model(lpow, rpow)
-            
-            
+                self.set_destination_and_rotation(x, y)
+        # path does not exist
+        else:
+            self.set_path(x, y)
+            self.set_destination_and_rotation(x, y)
+                
+        # forward
+        if ((self.dest[0] == 'x' and abs(self.dest[1] - x) > 0.001) or (self.dest[0] == 'y' and abs(self.dest[1] - y) > 0.001)) and abs(self.rotation-angle) <= 1:
+            lpow, rpow = self.forward(x, y, angle)
+        # rotate
+        else:
+            lpow, rpow = self.rotate(angle)
 
+        print(f'path = {self.path}')
+        print(f'lineSensor = {self.measures.lineSensor}')
+        print(f'exploredpath = {self.exploredpath}')
+        print(f'unexploredpath = {self.unexploredpaths}')
+        print(f'connections = {self.connections}')
+        print(f'destination = {self.dest[0]}, {self.dest[1]}')
+        print(f'lpow, rpow = {lpow}, {rpow}')
+        self.driveMotors(lpow, rpow)
+        self.update_model(lpow, rpow)
+    
         self.save_map()
 
+
+    def getAdjacentPos(self, direction, angle):
+        print(Back.GREEN+Fore.BLACK+f'HAS {direction}')
+        print(Style.RESET_ALL)
+        
+        coef = self.get_neightbor_coeficient(direction, angle)
+        x, y = self.prev_pos
+        nx = 2*round(x/2)
+        ny = 2*round(y/2)
+        if direction != 'front' and abs(self.rotation - angle) < 1:
+            x = 2*round(x/2)
+            y = 2*round(y/2)
+            if self.rotation == 0:
+                x -= 0.438
+            elif self.rotation == -180:
+                x += 0.438
+            if self.rotation == 90:
+                y -=0.438
+            elif self.rotation == -90:
+                y += 0.438
+
+        print(f'Corrected x: {x}, y: {y}')
+
+       
+        if self.rotation == 0:
+            nx += 0.438
+        elif self.rotation == -180:
+            nx -= 0.438
+        if self.rotation == 90:
+            ny +=0.438
+        elif self.rotation == -90:
+            ny -= 0.438
+
+        self.prev_pos = [x, y]
+        nx = 2*round(nx/2) + 2*coef[0]
+        ny = 2*round(ny/2) + 2*coef[1]
+        return [nx, ny, coef]
 
 
     def forward(self, x, y, compass):
@@ -808,7 +494,7 @@ class MyRob(CRobLinkAngs):
         if [[x, y], [nx, ny]] not in self.connections:
             self.connections.append([[x, y], [nx, ny]])
             self.write_known_path(x, y, nx, ny)
-            print(Back.YELLOW+f'added connection [{x}, {y}] <-> [{nx}, {ny}]')
+            print(Back.YELLOW+Fore.BLACK+f'added connection [{x}, {y}] <-> [{nx}, {ny}]')
             print(Style.RESET_ALL)
 
 
@@ -842,8 +528,8 @@ class MyRob(CRobLinkAngs):
 
     def set_path(self, x, y):
         # go for unexplored paths
-        x = round(x)
-        y = round(y)
+        x = 2*round(x/2)
+        y = 2*round(y/2)
         unexploredcell = self.find_next(x, y)
         self.path = self.get_best_path([x, y], unexploredcell)
         self.path_map = [[" " for j in range(1,50)] for i in range(1,22)]
@@ -852,8 +538,8 @@ class MyRob(CRobLinkAngs):
         self.save_map(self.path_map, "path.txt")
     
     def set_destination_and_rotation(self, x, y):
-        horizontal = self.path[0][0] - round(x)
-        vertical = self.path[0][1] - round(y)
+        horizontal = self.path[0][0] - 2*round(x/2)
+        vertical = self.path[0][1] - 2*round(y/2)
         if horizontal:
             self.dest = ('x', self.path[0][0])
         elif vertical:
@@ -927,7 +613,6 @@ class MyRob(CRobLinkAngs):
         if self.challenge == '4':
             x = self.prev_pos[0] + self.lin*math.cos(self.prev_angle)
             y = self.prev_pos[1] + self.lin*math.sin(self.prev_angle)
-            self.prev_pos = [x, y]
             return [x, y]
         else:
             return [self.measures.x + self.diffpos[0], self.measures.y + self.diffpos[1]]
