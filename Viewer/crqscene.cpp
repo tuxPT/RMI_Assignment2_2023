@@ -332,7 +332,7 @@ int CRQScene::drawRobot( CRLab * l_b )
                         rob->state() != CRRobot::REMOVED)
                 {
                     robot->setPixmap(*robPixmapCollision[rob->id() - 1]);
-                    if(!QAudioDeviceInfo::availableDevices(QAudio::AudioOutput).isEmpty() && sound == 'y')
+                    if(sound == 'y' && !QAudioDeviceInfo::availableDevices(QAudio::AudioOutput).isEmpty())
                         collisionSound->play();
                 }
                 else
@@ -351,7 +351,7 @@ int CRQScene::drawRobot( CRLab * l_b )
                 if(rob->state() == CRRobot::RETURNING &&
                         playSoundReturning[rob->id() - 1])
                 {
-                    if(!QAudioDeviceInfo::availableDevices(QAudio::AudioOutput).isEmpty() && sound == 'y')
+                    if(sound == 'y' && !QAudioDeviceInfo::availableDevices(QAudio::AudioOutput).isEmpty() )
                         returningSound->play();
 
                     playSoundReturning[rob->id() - 1] = 0;
@@ -360,7 +360,7 @@ int CRQScene::drawRobot( CRLab * l_b )
                 if(rob->state() == CRRobot::FINISHED &&
                         playSoundFinished[rob->id() - 1])
                 {
-                    if(!QAudioDeviceInfo::availableDevices(QAudio::AudioOutput).isEmpty() && sound == 'y')
+                    if(sound == 'y' && !QAudioDeviceInfo::availableDevices(QAudio::AudioOutput).isEmpty())
                         finishedSound->play();
 
                     playSoundFinished[rob->id() - 1] = 0;
