@@ -93,7 +93,7 @@ class MyRob(CRobLinkAngs):
         self.rob_name = rob_name
         self.challenge = challenge
         self.outfile = outfile
-        self.pid_Controller = PIDController(0.07, math.inf, 0.000001, 0.050, 0.5, math.inf, 0.000001)
+        self.pid_Controller = PIDController(0.07, math.inf, 0.000001, 0.050, 0.01, math.inf, 0.000001)
         if self.challenge == "1":
             self.track = []
         else:
@@ -329,7 +329,7 @@ class MyRob(CRobLinkAngs):
         # path exists
         if len(self.path):
             # destination reached
-            if (self.dest[0] == 'x' and abs(self.dest[1] - x) < 0.01) or (self.dest[0] == 'y' and abs(self.dest[1] - y) < 0.01):
+            if (self.dest[0] == 'x' and abs(self.dest[1] - x) <= 0.01) or (self.dest[0] == 'y' and abs(self.dest[1] - y) <= 0.01):
                 self.path = self.path[1:]
                 if len(self.path) == 0 and len(self.unexploredpaths) == 0 and len(self.beacons) == int(self.nBeacons):
                     print('finish')
@@ -349,7 +349,7 @@ class MyRob(CRobLinkAngs):
 
         rotation2 = (self.rotation + 180)%360
         angle2 = (angle + 180)%360
-        print(f'ROTATION2: {rotation2}, ANGLE2: {angle2}')
+        print(f'ROTATION: {self.rotation}, ANGLE: {angle}')
         # forward
         if ((self.dest[0] == 'x' and abs(self.dest[1] - x) > 0.01) or (self.dest[0] == 'y' and abs(self.dest[1] - y) > 0.01)) and abs(rotation2 - angle2) < 10:
             lpow, rpow = self.forward(x, y, angle, lineSensor)
@@ -430,25 +430,42 @@ class MyRob(CRobLinkAngs):
 
         difference = abs(rotation2 - angle2)
         difference2 = abs(360 - (rotation2 - angle2))
+        diff180_counterClockwise = angle > 0
+
        
         # centrar o lineSensor
         if ((self.dest[0] == 'x' and abs(self.dest[1] - x) > 0.5) or (self.dest[0] == 'y' and abs(self.dest[1] - y) > 0.5)):
-            # counter-clockwise distance
-            if difference <= difference2:
-                return self.go(pow, 0.1, lineSensor[3:7].count(1)/4, lineSensor[0:4].count(1)/4)
-            # clockwise distance
+            if self.rotation == -180:
+                if diff180_counterClockwise:
+                    return self.go(pow, 0.1, lineSensor[0:4].count(1)/4, lineSensor[3:7].count(1)/4)
+                else:
+                    return self.go(pow, 0.1, lineSensor[3:7].count(1)/4, lineSensor[0:4].count(1)/4)
+
             else:
-                return self.go(pow, 0.1, lineSensor[0:4].count(1)/4, lineSensor[3:7].count(1)/4)
+                # counter-clockwise distance
+                if difference <= difference2:
+                    return self.go(pow, 0.1, lineSensor[3:7].count(1)/4, lineSensor[0:4].count(1)/4)
+                # clockwise distance
+                else:
+                    return self.go(pow, 0.1, lineSensor[0:4].count(1)/4, lineSensor[3:7].count(1)/4)
         # centrar angulo
         else:
             print(Back.BLUE+Fore.WHITE+'ANGLE FORWARD')
             print(Style.RESET_ALL)
-            # counter-clockwise distance
-            if difference <= difference2:
-                return self.go(pow, 0.1, (angle+180)/360, (self.rotation+180)/360)
-            # clockwise distance
+            if self.rotation == -180:
+                if diff180_counterClockwise:
+                    return self.go(pow, 0.01, self.rotation, angle)
+                else:
+                    return self.go(pow, 0.01, angle, self.rotation)
+
             else:
-                return self.go(pow, 0.1, (self.rotation+180)/360, (angle+180)/360)
+                # counter-clockwise distance
+                if difference <= difference2:
+                    return self.go(pow, 0.01, angle2, rotation2)
+                # clockwise distance
+                else:
+                    return self.go(pow, 0.01, rotation2, angle2)
+
 
 
     def rotate(self, angle):
@@ -471,18 +488,20 @@ class MyRob(CRobLinkAngs):
 
 
         print(Style.RESET_ALL)
-        # counter-clockwise distance
-        if difference <= difference2:
-            pow = self.pid_Controller.go(self.rotation, angle, True)
+        diff180_counterClockwise = angle > 0
+        if self.rotation == -180:
+            if diff180_counterClockwise:
+                pow = self.pid_Controller.go(self.rotation, angle, True)
+            else:
+                pow = self.pid_Controller.go(angle, self.rotation, True)
 
-            #pow = self.pid_Controller.go((compass+180)/360, (self.rotation+180)/360, True)
-        # clockwise distance
         else:
-            #pow = self.pid_Controller.go((self.rotation+180)/360, (compass+180)/360, True)
-            pow = self.pid_Controller.go(angle, self.rotation, True)
-
-
-
+            # counter-clockwise distance
+            if difference <= difference2:
+                pow = self.pid_Controller.go(rotation2, angle2, True)
+            # clockwise distance
+            else:
+                pow = self.pid_Controller.go(angle2, rotation2, True)
 
         return -pow, pow
 
