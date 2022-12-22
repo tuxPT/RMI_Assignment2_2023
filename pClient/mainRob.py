@@ -93,7 +93,7 @@ class MyRob(CRobLinkAngs):
         self.rob_name = rob_name
         self.challenge = challenge
         self.outfile = outfile
-        self.pid_Controller = PIDController(0.07, math.inf, 0.000001, 0.050, 0.001, math.inf, 0.000001)
+        self.pid_Controller = PIDController(0.07, math.inf, 0.000001, 0.050, 0.01, math.inf, 0.000001)
         if self.challenge == "1":
             self.track = []
         else:
@@ -209,16 +209,19 @@ class MyRob(CRobLinkAngs):
             print(Fore.GREEN+f'index: {index}')
             print(f'count: {count}')
             print(Style.RESET_ALL)
-            #if count == 1:
-            #    array[index] = '1'
-            """ if array[6] == '1' and count < 2 and index > 3:
-                array = ['0']*count + array[0:index] + array[index+count:7]
-            elif array[0] == '1' and count < 2 and index < 3:
-                array = array[0:index] + array[index+count:7] + ['0']*count """
-            if array[0:index].count(1) > array[index+1:7].count(1):
-                array = array[0:index] + array[index+count:7] + [0 for i in range(0, count)]
+            if count == 1:
+                array[index+1] = 1
             else:
-                array = [0 for i in range(0, count)] + array[0:index] + array[index+count:7]
+                #if count == 1:
+                #    array[index] = '1'
+                """ if array[6] == '1' and count < 2 and index > 3:
+                    array = ['0']*count + array[0:index] + array[index+count:7]
+                elif array[0] == '1' and count < 2 and index < 3:
+                    array = array[0:index] + array[index+count:7] + ['0']*count """
+                if array[0:index].count(1) > array[index+1:7].count(1):
+                    array = array[0:index] + array[index+count:7] + [0 for i in range(0, count)]
+                else:
+                    array = [0 for i in range(0, count)] + array[0:index] + array[index+count:7]
 
             print(f'Corrected: {array}')
         return array
@@ -235,6 +238,15 @@ class MyRob(CRobLinkAngs):
             print(Back.RED+f'OUT')
             print(Style.RESET_ALL)
         last_value = [0 if i == '0' else 1 for i in self.measures.lineSensor]
+
+        if last_value.count(1) == 2:
+            index = last_value.index(1)
+            if 0 < index < 5:
+                if index < 3:
+                    last_value[index-1] = 1
+                else:
+                    last_value[index+2] = 1
+        last_value = self.detect_and_correct_error(last_value)
         print(f'last_value:       {last_value}')
         if len(self.linesensor_buffer) < 3:
             self.linesensor_buffer.extend([last_value, last_value, last_value])
@@ -249,10 +261,9 @@ class MyRob(CRobLinkAngs):
 
         print(f'Weighted average(lineSensor): {s}')
         for i in range(0, 7):
-            s[i] = round(s[i]+0.00001)
+            s[i] = round(s[i]-0.00001)
 
         s = self.detect_and_correct_error(s)
-        print(f'Weighted average(lineSensor): {s}')
         return s
 
     def get_correct_compass(self):
@@ -284,8 +295,9 @@ class MyRob(CRobLinkAngs):
 
 
     def wanderC4(self):
+        print("#############################################")
+
         lineSensor = self.weighted_average()
-        print(lineSensor)
         x,y = self.prev_pos = self.get_correct_measures()
         xn, yn = [2*round(x/2), 2*round(y/2)]
         angle = self.get_correct_compass()
@@ -330,11 +342,10 @@ class MyRob(CRobLinkAngs):
         print(lineSensor)
 
         nx, ny, coef = self.getAdjacentPos('front', angle)
-        rotation2 = (self.rotation + 180)%360
-        angle2 = (angle + 180)%360
+        diff = self.angle_dista(self.rotation, angle)
         if 4 > lineSensor.count(1) > 1 and 4 > lineSensor[2:5].count(1) > 1 and lineSensor[0] != 1 and lineSensor[6] != 1 \
             and ((abs(x - 2*round(x/2)) < 0.1 and coef[0]) or (abs(y - 2*round(y/2)) < 0.1 and coef[1])) and \
-                abs(rotation2 - angle2) < 10:
+                abs(diff) < 10:
             print(f'lineSENSOR CRLLLLL {lineSensor}')
             x, y = self.prev_pos
             # add connection on x,y at border cell
@@ -362,14 +373,9 @@ class MyRob(CRobLinkAngs):
             self.set_path(x, y)
             self.set_destination_and_rotation(x, y)
         
-        rotation2 = (self.rotation + 180)%360
-        angle2 = (angle + 180)%360
-
-        difference = abs(rotation2 - angle2)
-        difference2 = abs(360 - (rotation2 - angle2))
         diff = self.angle_dista(self.rotation, angle)
         # forward
-        if ((self.dest[0] == 'x' and abs(self.dest[1] - x) > 0.05) or (self.dest[0] == 'y' and abs(self.dest[1] - y) > 0.05)) and abs(diff) < 5:
+        if ((self.dest[0] == 'x' and abs(self.dest[1] - x) > 0.05) or (self.dest[0] == 'y' and abs(self.dest[1] - y) > 0.05)) and abs(diff) < 10:
             lpow, rpow = self.forward(x, y, angle, lineSensor)
         # rotate
         else:
@@ -378,7 +384,8 @@ class MyRob(CRobLinkAngs):
             lpow, rpow = self.rotate(angle)
 
         print(f'path = {self.path}')
-        print(f'lineSensor = {self.measures.lineSensor}')
+        print(f'lineSensorOriginal = {self.measures.lineSensor}')
+        print(f'lineSensorCorrected = {lineSensor}')
         print(f'exploredpath = {self.exploredpath}')
         print(f'unexploredpath = {self.unexploredpaths}')
         print(f'connections = {self.connections}')
@@ -389,6 +396,7 @@ class MyRob(CRobLinkAngs):
     
         self.save_map()
 
+        print("#############################################")
 
     def getAdjacentPos(self, direction, angle):
         print(Back.GREEN+Fore.BLACK+f'HAS {direction}')
@@ -443,23 +451,20 @@ class MyRob(CRobLinkAngs):
             else:
                 pow = self.pid_Controller.go(self.dest[1], y)
 
-        rotation2 = (self.rotation + 180)%360
-        angle2 = (angle + 180)%360
-
-        difference = abs(rotation2 - angle2)
-        difference2 = abs(360 - (rotation2 - angle2))
-        diff180_counterClockwise = angle > 0
 
         if abs(x - 2*round(x/2)) <= 0.05 and abs(y - 2*round(y/2)) <= 0.05 and lineSensor.count(0) == 7:
-            self.rem_unexplored(self.path[0][0], self.path[0][1])
+            p = [2*round(x/2), 2*round(y/2)]
             self.rem_connection(self.path[0][0], self.path[0][1], 2*round(x/2), 2*round(y/2))
+            unexplored_connections = [connection for connection in self.connections if connection[0] ==  p or connection[1] == p]
+            if len(unexplored_connections) == 1:
+                self.rem_unexplored(self.path[0][0], self.path[0][1])
             self.path = []
             return 0, 0
 
        
         # centrar o lineSensor
         if ((self.dest[0] == 'x' and abs(self.dest[1] - x) > 0.5) or (self.dest[0] == 'y' and abs(self.dest[1] - y) > 0.5)):
-            return self.go(pow, 0.05, lineSensor[3:7].count(1)/4, lineSensor[0:4].count(1)/4)
+            return self.go(pow, 1.0, lineSensor[3:7].count(1)/4, lineSensor[0:4].count(1)/4)
         # centrar angulo
         else:
             print(Back.BLUE+Fore.WHITE+'ANGLE FORWARD')
@@ -539,7 +544,7 @@ class MyRob(CRobLinkAngs):
     def add_connection(self, nx, ny, x, y):
         x = 2*round(x/2)
         y = 2*round(y/2)
-        if [[x, y], [nx, ny]] not in self.connections:
+        if [[x, y], [nx, ny]] not in self.connections and [[nx, ny], [x, y]] not in self.connections:
             self.connections.append([[x, y], [nx, ny]])
             self.write_known_path(x, y, nx, ny)
             print(Back.YELLOW+Fore.BLACK+f'added connection [{x}, {y}] <-> [{nx}, {ny}]')
@@ -552,6 +557,11 @@ class MyRob(CRobLinkAngs):
             self.connections.remove([[x, y], [nx, ny]])
             #self.write_known_path(x, y, nx, ny)
             print(Back.YELLOW+Fore.BLACK+f'added connection [{x}, {y}] <-> [{nx}, {ny}]')
+            print(Style.RESET_ALL)
+        elif [[nx, ny], [x, y]] in self.connections:
+            self.connections.remove([[nx, ny], [x, y]])
+            #self.write_known_path(x, y, nx, ny)
+            print(Back.YELLOW+Fore.BLACK+f'added connection [{nx}, {ny}] <-> [{x}, {y}]')
             print(Style.RESET_ALL)
 
 
