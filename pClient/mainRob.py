@@ -93,7 +93,7 @@ class MyRob(CRobLinkAngs):
         self.rob_name = rob_name
         self.challenge = challenge
         self.outfile = outfile
-        self.pid_Controller = PIDController(0.07, math.inf, 0.000001, 0.050, 0.01, math.inf, 0.000001)
+        self.pid_Controller = PIDController(0.07, math.inf, 0.000001, 0.050, 0.001, math.inf, 0.000001)
         if self.challenge == "1":
             self.track = []
         else:
@@ -222,6 +222,13 @@ class MyRob(CRobLinkAngs):
 
             print(f'Corrected: {array}')
         return array
+    
+    @staticmethod
+    def angle_dista(angle1, angle2):
+        diff = (angle2 - angle1 + 180) % 360 -180
+        if diff < -180:
+            diff += 360
+        return diff
 
     def weighted_average(self):
         if self.measures.lineSensor.count('0') == 7:
@@ -258,9 +265,18 @@ class MyRob(CRobLinkAngs):
             self.compass_buffer.popleft()
         print(f'deque:            {self.compass_buffer}')
         s = 0
+        aux_array = self.compass_buffer
         for i in range(0, len(self.compass_buffer)):
-            s += self.compass_buffer[i]*(i+1)/6
+            if i > 0:
+                diff = self.angle_dista(self.compass_buffer[i], self.compass_buffer[i-1])
+                print(f'DIFF COMPASS {diff}')
+                if self.compass_buffer[i] - self.compass_buffer[i-1] > 180:
+                    aux_array[i] -= 360
+                elif self.compass_buffer[i] - self.compass_buffer[i-1] < -180:
+                    aux_array[i] += 360
+            s += aux_array[i]*(i+1)/6
 
+        s = (s+180)%360-180
         self.prev_angle = s/180*math.pi
 
         print(f'Weighted average(angle): {s}')
@@ -329,7 +345,7 @@ class MyRob(CRobLinkAngs):
         # path exists
         if len(self.path):
             # destination reached
-            if (self.dest[0] == 'x' and abs(self.dest[1] - x) <= 0.01) or (self.dest[0] == 'y' and abs(self.dest[1] - y) <= 0.01):
+            if (self.dest[0] == 'x' and abs(self.dest[1] - x) <= 0.05) or (self.dest[0] == 'y' and abs(self.dest[1] - y) <= 0.05):
                 self.path = self.path[1:]
                 if len(self.path) == 0 and len(self.unexploredpaths) == 0 and len(self.beacons) == int(self.nBeacons):
                     print('finish')
@@ -345,13 +361,15 @@ class MyRob(CRobLinkAngs):
         else:
             self.set_path(x, y)
             self.set_destination_and_rotation(x, y)
-                
-
+        
         rotation2 = (self.rotation + 180)%360
         angle2 = (angle + 180)%360
-        print(f'ROTATION: {self.rotation}, ANGLE: {angle}')
+
+        difference = abs(rotation2 - angle2)
+        difference2 = abs(360 - (rotation2 - angle2))
+        diff = self.angle_dista(self.rotation, angle)
         # forward
-        if ((self.dest[0] == 'x' and abs(self.dest[1] - x) > 0.01) or (self.dest[0] == 'y' and abs(self.dest[1] - y) > 0.01)) and abs(rotation2 - angle2) < 10:
+        if ((self.dest[0] == 'x' and abs(self.dest[1] - x) > 0.05) or (self.dest[0] == 'y' and abs(self.dest[1] - y) > 0.05)) and abs(diff) < 5:
             lpow, rpow = self.forward(x, y, angle, lineSensor)
         # rotate
         else:
@@ -432,77 +450,30 @@ class MyRob(CRobLinkAngs):
         difference2 = abs(360 - (rotation2 - angle2))
         diff180_counterClockwise = angle > 0
 
+        if abs(x - 2*round(x/2)) <= 0.05 and abs(y - 2*round(y/2)) <= 0.05 and lineSensor.count(0) == 7:
+            self.rem_unexplored(self.path[0][0], self.path[0][1])
+            self.rem_connection(self.path[0][0], self.path[0][1], 2*round(x/2), 2*round(y/2))
+            self.path = []
+            return 0, 0
+
        
         # centrar o lineSensor
         if ((self.dest[0] == 'x' and abs(self.dest[1] - x) > 0.5) or (self.dest[0] == 'y' and abs(self.dest[1] - y) > 0.5)):
-            if self.rotation == -180:
-                if diff180_counterClockwise:
-                    return self.go(pow, 0.1, lineSensor[0:4].count(1)/4, lineSensor[3:7].count(1)/4)
-                else:
-                    return self.go(pow, 0.1, lineSensor[3:7].count(1)/4, lineSensor[0:4].count(1)/4)
-
-            else:
-                # counter-clockwise distance
-                if difference <= difference2:
-                    return self.go(pow, 0.1, lineSensor[3:7].count(1)/4, lineSensor[0:4].count(1)/4)
-                # clockwise distance
-                else:
-                    return self.go(pow, 0.1, lineSensor[0:4].count(1)/4, lineSensor[3:7].count(1)/4)
+            return self.go(pow, 0.05, lineSensor[3:7].count(1)/4, lineSensor[0:4].count(1)/4)
         # centrar angulo
         else:
             print(Back.BLUE+Fore.WHITE+'ANGLE FORWARD')
             print(Style.RESET_ALL)
-            if self.rotation == -180:
-                if diff180_counterClockwise:
-                    return self.go(pow, 0.01, self.rotation, angle)
-                else:
-                    return self.go(pow, 0.01, angle, self.rotation)
-
-            else:
-                # counter-clockwise distance
-                if difference <= difference2:
-                    return self.go(pow, 0.01, angle2, rotation2)
-                # clockwise distance
-                else:
-                    return self.go(pow, 0.01, rotation2, angle2)
-
-
+            diff = self.angle_dista(self.rotation, angle)
+            return self.go(pow, 2, diff/180, 0)
 
     def rotate(self, angle):
-        rotation2 = (self.rotation + 180)%360
-        angle2 = (angle + 180)%360
-
-        difference = abs(rotation2 - angle2)
-        difference2 = abs(360 - (rotation2 - angle2))
-        #compass2 = compass + 180
-        #rotation = self.rotation + 180
-            
-        #difference = abs(rotation - compass2)
-        #difference2 = abs(360 - rotation - compass2)
-
         print(Back.GREEN+Fore.BLACK+f'ROTATION = {self.rotation}, ANGLE = {angle}')
-        print(Back.GREEN+Fore.BLACK+f'ROTATION2 = {rotation2}, ANGLE2 = {angle2}')
-        print(Back.GREEN+Fore.BLACK+f'DIFFERENCE = {difference}, DIFFERENCE2 = {difference2}')
-        print(Back.GREEN+Fore.BLACK+f'DIFFERENCE1 = {difference <= difference2}')
-
-
 
         print(Style.RESET_ALL)
-        diff180_counterClockwise = angle > 0
-        if self.rotation == -180:
-            if diff180_counterClockwise:
-                pow = self.pid_Controller.go(self.rotation, angle, True)
-            else:
-                pow = self.pid_Controller.go(angle, self.rotation, True)
-
-        else:
-            # counter-clockwise distance
-            if difference <= difference2:
-                pow = self.pid_Controller.go(rotation2, angle2, True)
-            # clockwise distance
-            else:
-                pow = self.pid_Controller.go(angle2, rotation2, True)
-
+        diff = self.angle_dista(self.rotation, angle)
+        print(f'DIFF COMPASS {diff}')
+        pow = self.pid_Controller.go(0, diff, True)
         return -pow, pow
 
     # returns the closest non explored point to the current position
@@ -571,6 +542,15 @@ class MyRob(CRobLinkAngs):
         if [[x, y], [nx, ny]] not in self.connections:
             self.connections.append([[x, y], [nx, ny]])
             self.write_known_path(x, y, nx, ny)
+            print(Back.YELLOW+Fore.BLACK+f'added connection [{x}, {y}] <-> [{nx}, {ny}]')
+            print(Style.RESET_ALL)
+    
+    def rem_connection(self, nx, ny, x, y):
+        x = 2*round(x/2)
+        y = 2*round(y/2)
+        if [[x, y], [nx, ny]] in self.connections:
+            self.connections.remove([[x, y], [nx, ny]])
+            #self.write_known_path(x, y, nx, ny)
             print(Back.YELLOW+Fore.BLACK+f'added connection [{x}, {y}] <-> [{nx}, {ny}]')
             print(Style.RESET_ALL)
 
