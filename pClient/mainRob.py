@@ -93,7 +93,9 @@ class MyRob(CRobLinkAngs):
         self.rob_name = rob_name
         self.challenge = challenge
         self.outfile = outfile
-        self.pid_Controller = PIDController(0.07, math.inf, 0.000001, 0.050, 0.01, math.inf, 0.000001)
+        self.pid_Controller = PIDController(0.07, 10, 0.000001, 0.050, 0.001, math.inf, 0.000001)
+        self.action = 'stop'
+        self.checkNeighbors = 0
         if self.challenge == "1":
             self.track = []
         else:
@@ -293,6 +295,15 @@ class MyRob(CRobLinkAngs):
         print(f'Weighted average(angle): {s}')
         return s
 
+    def hasNeighbor(self, x, y):
+        # pesquisa no mapa em vez da lista
+        for point in self.unexploredpaths:
+            if point != (x,y):
+                dist = abs(x-point[0]) + abs(y-point[1])
+                if dist == 2:
+                    return True
+        return False
+
 
     def wanderC4(self):
         print("#############################################")
@@ -311,8 +322,10 @@ class MyRob(CRobLinkAngs):
         self.exploredpath.add((xn, yn))
         self.rem_unexplored(x, y)
 
+        diff = self.angle_dista(self.rotation, angle)
+
         # if there is a path both to the right and to the left
-        if lineSensor.count(1) == 7:
+        if lineSensor.count(1) == 7 and abs(diff) < 10:
             nx, ny, _ = self.getAdjacentPos('left', angle)
             x, y = self.prev_pos
             self.add_unexplored(nx, ny)                 
@@ -322,7 +335,7 @@ class MyRob(CRobLinkAngs):
             self.add_connection(nx, ny, x, y)
 
         # if there is a path to the left
-        elif lineSensor[0] == 1:
+        elif lineSensor[0] == 1 and abs(diff) < 10:
             if lineSensor.count(1) > 4:
                 nx, ny, _ = self.getAdjacentPos('left', angle)
                 x, y = self.prev_pos
@@ -331,7 +344,7 @@ class MyRob(CRobLinkAngs):
                 self.add_connection(nx, ny, x, y)
             
         # if there is a path to the right
-        elif lineSensor[6] == 1:
+        elif lineSensor[6] == 1 and abs(diff) < 10:
             if lineSensor.count(1) > 4:
                 nx, ny, _ = self.getAdjacentPos('right', angle)
                 x, y = self.prev_pos
@@ -342,19 +355,18 @@ class MyRob(CRobLinkAngs):
         print(lineSensor)
 
         nx, ny, coef = self.getAdjacentPos('front', angle)
-        diff = self.angle_dista(self.rotation, angle)
         if 4 > lineSensor.count(1) > 1 and 4 > lineSensor[2:5].count(1) > 1 and lineSensor[0] != 1 and lineSensor[6] != 1 \
-            and ((abs(x - 2*round(x/2)) < 0.1 and coef[0]) or (abs(y - 2*round(y/2)) < 0.1 and coef[1])) and \
-                abs(diff) < 10:
+            and ((abs(x - 2*round(x/2)) < 0.3 and coef[0]) or (abs(y - 2*round(y/2)) < 0.3 and coef[1])) and abs(diff) < 10:
             print(f'lineSENSOR CRLLLLL {lineSensor}')
             x, y = self.prev_pos
             # add connection on x,y at border cell
             print(f'NX, NY: {nx}, {ny}')
             self.add_unexplored(nx, ny)                
             self.add_connection(nx, ny, x, y)
-
+            self.checkNeighbors = 0
+        
         # path exists
-        if len(self.path):
+        if len(self.path):                
             # destination reached
             if (self.dest[0] == 'x' and abs(self.dest[1] - x) <= 0.05) or (self.dest[0] == 'y' and abs(self.dest[1] - y) <= 0.05):
                 self.path = self.path[1:]
@@ -366,16 +378,22 @@ class MyRob(CRobLinkAngs):
                     return
                 # full path reached
                 if len(self.path) == 0:
-                    self.set_path(x, y)
-                self.set_destination_and_rotation(x, y)
+                    if not self.hasNeighbor(xn, yn):
+                        self.checkNeighbors = 5
+                else:
+                    self.set_destination_and_rotation(x, y)
+                self.action = 'rotate'
+        elif self.checkNeighbors:
+            self.action = 'rotate'
         # path does not exist
         else:
             self.set_path(x, y)
             self.set_destination_and_rotation(x, y)
+            self.action = 'rotate'
         
         diff = self.angle_dista(self.rotation, angle)
         # forward
-        if ((self.dest[0] == 'x' and abs(self.dest[1] - x) > 0.05) or (self.dest[0] == 'y' and abs(self.dest[1] - y) > 0.05)) and abs(diff) < 10:
+        if self.action == 'forward':
             lpow, rpow = self.forward(x, y, angle, lineSensor)
         # rotate
         else:
@@ -389,7 +407,7 @@ class MyRob(CRobLinkAngs):
         print(f'exploredpath = {self.exploredpath}')
         print(f'unexploredpath = {self.unexploredpaths}')
         print(f'connections = {self.connections}')
-        print(f'destination = {self.dest[0]}, {self.dest[1]}')
+        #print(f'destination = {self.dest[0]}, {self.dest[1]}')
         print(f'lpow, rpow = {lpow}, {rpow}')
         self.driveMotors(lpow, rpow)
         self.update_model(lpow, rpow)
@@ -439,6 +457,10 @@ class MyRob(CRobLinkAngs):
 
 
     def forward(self, x, y, angle, lineSensor):
+        if (self.dest[0] == 'x' and abs(self.dest[1] - x) <= 0.02) \
+            or (self.dest[0] == 'y' and abs(self.dest[1] - y) <= 0.02):
+            self.action = 'rotate'
+            return 0, 0
         pow = 0
         if self.dest[0] == 'x':
             if self.rotation == -180:
@@ -451,31 +473,43 @@ class MyRob(CRobLinkAngs):
             else:
                 pow = self.pid_Controller.go(self.dest[1], y)
 
-
-        if abs(x - 2*round(x/2)) <= 0.05 and abs(y - 2*round(y/2)) <= 0.05 and lineSensor.count(0) == 7:
+        diff = self.angle_dista(self.rotation, angle)
+        if abs(x - 2*round(x/2)) <= 0.01 and abs(y - 2*round(y/2)) <= 0.01 and lineSensor.count(0) == 7 and abs(diff) < 1:
             p = [2*round(x/2), 2*round(y/2)]
-            self.rem_connection(self.path[0][0], self.path[0][1], 2*round(x/2), 2*round(y/2))
-            unexplored_connections = [connection for connection in self.connections if connection[0] ==  p or connection[1] == p]
-            if len(unexplored_connections) == 1:
-                self.rem_unexplored(self.path[0][0], self.path[0][1])
+            if len(self.path):
+                self.rem_connection(self.path[0][0], self.path[0][1], 2*round(x/2), 2*round(y/2))
+                unexplored_connections = [connection for connection in self.connections if connection[0] ==  p or connection[1] == p]
+                if len(unexplored_connections) == 1:
+                    self.rem_unexplored(self.path[0][0], self.path[0][1])
+                print(f'REMOVED CONNECTION [{self.path[0]}, {p}]')
             self.path = []
             return 0, 0
 
        
         # centrar o lineSensor
         if ((self.dest[0] == 'x' and abs(self.dest[1] - x) > 0.5) or (self.dest[0] == 'y' and abs(self.dest[1] - y) > 0.5)):
-            return self.go(pow, 1.0, lineSensor[3:7].count(1)/4, lineSensor[0:4].count(1)/4)
+            return self.go(pow, 0.1, lineSensor[3:7].count(1)/4, lineSensor[0:4].count(1)/4)
         # centrar angulo
         else:
             print(Back.BLUE+Fore.WHITE+'ANGLE FORWARD')
             print(Style.RESET_ALL)
-            diff = self.angle_dista(self.rotation, angle)
+            
             return self.go(pow, 2, diff/180, 0)
 
     def rotate(self, angle):
+        
         print(Back.GREEN+Fore.BLACK+f'ROTATION = {self.rotation}, ANGLE = {angle}')
 
         print(Style.RESET_ALL)
+        diff = self.angle_dista(self.rotation, angle)
+        if abs(diff) < 0.5 and not self.checkNeighbors:
+            self.action = 'forward'
+            return 0, 0
+
+        if self.checkNeighbors and abs(diff) < 0.5:
+            self.rotation = (self.rotation + 180 + 90)%360 -180
+            self.checkNeighbors -= 1
+        
         diff = self.angle_dista(self.rotation, angle)
         print(f'DIFF COMPASS {diff}')
         pow = self.pid_Controller.go(0, diff, True)
@@ -497,7 +531,7 @@ class MyRob(CRobLinkAngs):
 
     # based on tree_search module and list of connections, returns the best path from origin to destination
     def get_best_path(self, origin, destination):
-        origin = [2*round(origin[0]/2), 2*round(origin[1]/2)]
+        print(f'ORIGIN = {origin}')
         self.pathtoexplore = []
 
         self.pathtoexplore += SearchTree(SearchProblem(Domain(self.connections), origin, destination), 'a*').search(2000)[0]
@@ -598,6 +632,7 @@ class MyRob(CRobLinkAngs):
         x = 2*round(x/2)
         y = 2*round(y/2)
         unexploredcell = self.find_next(x, y)
+        print(f'unexploredcell = {unexploredcell}')
         self.path = self.get_best_path([x, y], unexploredcell)
         self.path_map = [[" " for j in range(1,50)] for i in range(1,22)]
         for cell in self.path:
